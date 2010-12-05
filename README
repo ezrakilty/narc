@@ -1,0 +1,5 @@
+Narc
+----
+
+A library for database access in Haskell through the embedding of the
+nested relational calculus.
