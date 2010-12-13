@@ -3,3 +3,11 @@ Narc
 
 A library for database access in Haskell through the embedding of the
 nested relational calculus.
+
+Some papers on the nested relational calculus are collected at:
+
+  https://www.comp.nus.edu.sg/~wongls/projects/nested-relations/index.html
+  http://portal.acm.org/citation.cfm?id=276304.276310
+  http://linkinghub.elsevier.com/retrieve/pii/S0304397599003011
+  http://www.springerlink.com/index/h0g275uv68286535.pdf
+  http://www-db.informatik.uni-tuebingen.de/files/publications/ferryhaskell.pdf

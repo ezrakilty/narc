@@ -3,37 +3,28 @@
 module Narc.Test where
 
 import Prelude hiding (catch)
--- import Control.Exception (catch, throwIO, evaluate, SomeException)
 import Control.Monad.State hiding (when, join)
 import Control.Monad.Error ({- Error(..), throwError, -} runErrorT)
--- import List (nub, (\\), sort, sortBy, groupBy, intersperse)
--- import Maybe (fromJust, isJust, fromMaybe)
-
--- import Control.Applicative ((<$>), (<*>))
--- import Foreign (unsafePerformIO)            -- FIXME
 
 import Test.QuickCheck hiding (promote, Failure)
-import QCUtils
 import Test.HUnit hiding (State, assert)
 
 import Gensym
+import QCUtils
 
 import Narc.AST
--- import Narc.Common
 import Narc.Compile
 import Narc.Debug
 import Narc.Eval
 import Narc.Failure
 import Narc.Pretty
--- import Narc.AST.Pretty
--- import Narc.SQL.Pretty
 import Narc.SQL
 import Narc.Type as Type
 import Narc.TypeInfer
 import Narc.Util
 
-mkNormalizerTests :: ErrorGensym Test
-mkNormalizerTests = 
+makeNormalizerTests :: ErrorGensym Test
+makeNormalizerTests = 
     do initialTyEnv <- makeInitialTyEnv 
        return$ TestList 
                  [TestCase $ unitAssert $ 
@@ -50,7 +41,7 @@ mkNormalizerTests =
                  ]
 
 unitTests :: ErrorGensym Test
-unitTests = do normalizerTests <- mkNormalizerTests 
+unitTests = do normalizerTests <- makeNormalizerTests 
                return $ TestList [tyCheckTests, normalizerTests, typingTest]
 
 runUnitTests :: IO Counts
@@ -71,8 +62,8 @@ prop_eval_safe =
       Right (m'@(_, ty)) -> 
           isDBTableTy ty ==>
             let q = (compile [] $! m') in
-            collect (sizeQuery q) $ 
-                    excAsFalse (q == q) -- self-comparison forces the
+            collect (sizeQuery q) $  -- NB: Counts sizes only up to ~100.
+                    excAsFalse (q == q) -- Self-comparison forces the
                                         -- value (?) thus surfacing
                                         -- any @error@s that might be
                                         -- raised.
@@ -243,10 +234,6 @@ prop_typedTermGen_tyCheck =
     Left _ -> False
     Right (_m', ty') -> isErrorMSuccess $ unify ty ty'
 
---
--- QuickCheck Tests
---
-
 -- Generators
 
 instance Arbitrary Op where
@@ -272,11 +259,7 @@ varGen = (return ('x':)) `ap` identGen
 pairGen :: Gen a -> Gen b -> Gen (a, b)
 pairGen aGen bGen = do a <- aGen; b <- bGen; return (a, b)
 
-
-
 -- Main ----------------------------------------------------------------
 
 main :: IO ()
-main = quickCheckWith logSizeArgs prop_eval_safe
-
-scrap = (App (Abs "xY" (App (If (Bool True,()) (Abs "xv" (Table "TcGZo" [("t0",TNum)],()),()) (Abs "xn" (Table "Tm" [("t0",TNum)],()),()),()) (App (Abs "xOF" (Abs "xh" (Var "xh",()),()),()) (Bool True,()),()),()),()) (App (App (App (Abs "xA" (Abs "xOW" (Var "+",()),()),()) (Num 1,()),()) (Comp "xyN" (Singleton (Abs "xPFY" (Num 1,()),()),()) (Singleton (Num (-1),()),()),()),()) (App (If (Bool True,()) (Abs "xO" (Num 4,()),()) (Abs "xsaN" (Num 4,()),()),()) (App (Abs "xT" (Singleton (Bool False,()),()),()) (Num 3,()),()),()),()),())
+main = quickCheckWith tinyArgs prop_eval_safe

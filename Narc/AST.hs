@@ -26,6 +26,8 @@ type Term a = (Term' a, a)
 
 -- TBD: use term ::: type or similar instead of (term, type).
 
+type PlainTerm = Term ()
+
 type TypedTerm = Term Type
 
 -- Operations on terms -------------------------------------------------

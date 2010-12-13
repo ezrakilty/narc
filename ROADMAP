@@ -2,3 +2,7 @@ Roadmap
 -------
 
   * Add database backends for MySQL, PostgreSQL, etc.
+  * Use (term ::: type) or similar, instead of (term, type).
+  * Settle on a very nice front-end syntax (perhaps the HOAS-like
+    builders in Narc.hs?)
+

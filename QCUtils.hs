@@ -10,33 +10,43 @@ import Foreign (unsafePerformIO)
 import System.Random
 
 {- Wrappers for detecting exceptions -}
-errorAsNothing :: a -> Maybe a
-errorAsNothing exp = unsafePerformIO $ 
-                     catch (do x <- evaluate exp
-                               return $ Just x)
-                           (\(exc::SomeException) -> return Nothing)
 
-errorAsFalse :: Bool -> Property
-errorAsFalse exp = unsafePerformIO $ 
+-- | @propertyDefined x@ is a property asserting that @x@ can be
+-- | forced without error.
+propertyDefined :: a -> Property
+propertyDefined exp = unsafePerformIO $ 
+                      catch (do x <- evaluate exp
+                                return $ property True)
+                            (\(exc::SomeException) -> return $ property False)
+
+-- | @excAsFalse x@ is a property that acts like @x@, except that it
+-- | is @False@ when @x@ would throw an exception (and never throws an
+-- | exception itself).
+excAsFalse :: Testable a => a -> Property
+excAsFalse exp = unsafePerformIO $ 
                      catch (do x <- evaluate exp
                                return $ property x)
                            (\(exc::SomeException) -> return $ property False)
 
-propertyDefined :: a -> Property
-propertyDefined exp = unsafePerformIO $ 
+-- | Convert an arbitrary value into a @Maybe@ by forcing it,
+-- | catching errors and treating them as @Nothing@.
+excAsNothing :: a -> Maybe a
+excAsNothing exp = unsafePerformIO $ 
                      catch (do x <- evaluate exp
-                               return $ property True)
-                           (\(exc::SomeException) -> return $ property False)
+                               return $ Just x)
+                           (\(exc::SomeException) -> return Nothing)
 
+-- | A predicate asserting that forcing a thunk produces an error
+-- | (useful for tests that want to ensure error is thrown).
 throws :: a -> Bool
 throws exp = unsafePerformIO $ 
              catch (do !x <- evaluate exp
                        return $ False)
                    (\(exc::SomeException) -> return True)
 
--- f_equal: Compare two functions at a particular input, incl. error behavior.
--- Odd order of arguments.
-f_equal x f g = (errorAsNothing $ f x) == (errorAsNothing $ g x)
+-- | Compare two functions at a particular input, incl. error
+-- behavior.
+f_equal x f g = (excAsNothing $ f x) == (excAsNothing $ g x)
 
 {- Some simple generators -}
 
@@ -57,7 +67,7 @@ arbStringLen charGen (n+1) = do str <- arbStringLen charGen n
                                 ch <- charGen
                                 return $ ch : str
 
--- arbString: Generate a string of some length between 0 and 6, each length 
+-- | arbString: Generate a string of some length between 0 and 6, each length 
 -- with equal probability
 arbString charGen = frequency [(1, arbStringLen charGen len)| len <- [0..6]]
 
@@ -87,6 +97,7 @@ expIntGen n = frequency [(1, return n), (1, expIntGen (n+1))]
 --     [generate size (mkStdGen i) gen | i <- [0..n-1]]
 
 -- Combinators for writing conditional generators
+
 when p e = if p then [e] else []
 whens p e = if p then e else []
 
@@ -136,3 +147,45 @@ genEnv min =
 failProp = property False
 
 ignore = False ==> (undefined::Bool)
+
+-- QuickCheck settings -------------------------------------------------
+
+tinyArgs :: Args
+tinyArgs = Args {
+    maxSuccess = 100,
+    maxDiscard = 100,
+    maxSize = 8,
+    replay = Nothing
+  }
+
+verySmallArgs :: Args
+verySmallArgs = Args {
+    maxSuccess = 1000,
+    maxDiscard = 1000,
+    maxSize = 12,
+    replay = Nothing
+  }
+
+smallArgs :: Args
+smallArgs = Args {
+    maxSuccess = 10000,
+    maxDiscard = 10000,
+    maxSize = 16,
+    replay = Nothing
+  }
+
+mediumArgs :: Args
+mediumArgs = Args {
+    maxSuccess = 100,
+    maxDiscard = 100,
+    maxSize = 100,
+    replay = Nothing
+  }
+
+bigArgs :: Args
+bigArgs = Args {
+    maxSuccess = 1000,
+    maxDiscard = 1000,
+    maxSize = 500,
+    replay = Nothing
+  }

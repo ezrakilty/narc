@@ -35,6 +35,10 @@ data Query = Select {rslt :: Query,                  -- make this a list
            | QExists Query
         deriving(Eq, Show)
 
+emptyQuery = Select {rslt = QRecord [], tabs = [], cond = [QBool False]}
+
+-- | @sizeQuery@ approximates the size of a query by calling giving up
+-- | its node count past a certain limit (currently limit = 100, below).
 sizeQueryExact :: Query -> Integer
 sizeQueryExact (q@(Select _ _ _)) =
     sizeQueryExact (rslt q) + (sum $ map sizeQueryExact (cond q))
@@ -48,6 +52,8 @@ sizeQueryExact (QUnion m n) = sizeQueryExact m + sizeQueryExact n
 sizeQueryExact (QIf c a b) = sizeQueryExact c + sizeQueryExact a + sizeQueryExact b
 sizeQueryExact (QExists q) = 1 + sizeQueryExact q
 
+-- | @sizeQuery@ approximates the size of a query by calling giving up
+-- | its node count past a certain limit (currently limit = 100, below).
 sizeQuery :: Query -> Integer
 sizeQuery qy = loop 0 qy
     where

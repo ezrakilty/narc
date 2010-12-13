@@ -17,6 +17,8 @@ import Narc.Debug (debug)
 -- Type inference ------------------------------------------------------
 --
 
+type TyEnv = [(Var, QType)]
+
 isBaseTy TBool = True
 isBaseTy TNum  = True
 isBaseTy _     = False
@@ -47,7 +49,7 @@ tyCheckTerms env terms =
 -- The environment has type [(Var, QType)];
 -- an entry (x, qty) indicates that variable x has the quantified type qty;
 -- a qTy (ys, ty) indicates the type "forall ys, ty".
-tyCheck :: [(Var, QType)] -> Term a
+tyCheck :: TyEnv -> Term a
         -> ErrorGensym (TySubst, Term Type)
 tyCheck env (Unit, _) = 
     do let ty = (TUnit)

@@ -51,7 +51,7 @@ appPrim p _ = error("Unknown primitive" ++ p)
 -- | eval: Evaluate a typed term in a closing environment. Captures the
 -- effects performed by the term. (NB: type info is not actually used;
 -- should eliminate this.)
-eval :: Env -> TypedTerm -> (Value)
+eval :: Env -> TypedTerm -> Value
 eval env (Unit, _) = (VUnit)
 eval env (Bool b, q) = (VBool b)
 eval env (Num n, q) = (VNum n)

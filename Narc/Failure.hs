@@ -39,7 +39,7 @@ tryErrorGensym = runGensym . runErrorT
 
 under x = either throwError return x
 
-errorMToBool = either (const False) (const True) 
+isErrorMSuccess = either (const False) (const True) 
 
 instance Error () where
     noMsg = ()

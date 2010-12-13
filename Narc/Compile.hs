@@ -1,20 +1,18 @@
+{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Narc.Compile where
-
-import Control.Exception (evaluate, throwIO) -- FIXME: Used just for debugging? Eliminate.
+module Narc.Compile (compile) where
 
 import Data.List ((\\))
 
 import Narc.AST
+import Narc.AST.Pretty ()
 import Narc.Contract
-import Narc.Debug (debug, forceAndReport)
+import Narc.Debug (forceAndReport)
+import Narc.Pretty
 import Narc.Type as Type
 import Narc.TypeInfer
 import Narc.Util (image, maps, alistmap)
-import Narc.Pretty
-import Narc.AST.Pretty
-import Narc.SQL.Pretty
 import Narc.SQL
 
 -- { Compilation } -----------------------------------------------------
@@ -29,15 +27,15 @@ etaExpand expr fieldTys =
 -- | Normalize DB terms on a CBV evaluation strategy. First arg is an
 -- environment: the variables it is ok not to normalize.
 normTerm :: [(String, QType)] -> TypedTerm -> TypedTerm
-normTerm env (m@(Unit, _)) = m
-normTerm env (m@(Bool b, _)) = m
-normTerm env (m@(Num n, _)) = m
+normTerm _env (m@(Unit, _ty)) = m
+normTerm _env (m@(Bool _b, _)) = m
+normTerm _env (m@(Num _n, _)) = m
 normTerm env (PrimApp fun args, t) = (PrimApp fun (map (normTerm env) args), t)
 normTerm env (expr@(Var x, t)) = 
     -- Eta-expand at record type.
-    if x `maps` env then 
+    if (maps x) env then 
         case t of
-          TRecord t -> etaExpand expr t
+          TRecord t' -> etaExpand expr t'
           _ -> (Var x, t) 
     else
       error $ "Free variable "++ x ++ " in normTerm"
@@ -52,7 +50,8 @@ normTerm env (App l m, t) =
           ) ("susbtituting "++show w++" for "++x++" in "++show n)
       (If b l1 l2, _) ->
           (normTerm env (If b (App l1 w, t) (App l2 w, t), t))
-      v -> error $ "unexpected normal form in appl posn in normTerm" ++ show v
+      v@(Var x, _) -> (App v w, t)
+      v -> error $ "unexpected normal form in appl posn in normTerm " ++ show v
 normTerm env (Table s t, t') = (Table s t, t')
 normTerm env (If b m (Nil, _), t@(TList _)) =
     let b' = normTerm env b in
@@ -63,7 +62,7 @@ normTerm env (If b m (Nil, _), t@(TList _)) =
       (Comp x l m', _) -> normTerm env (Comp x l (If b' m' (Nil, t), t), t)
       (m1 `Union` m2, _) -> ((normTerm env (If b' m1 (Nil, t), t)) `Union`
                              (normTerm env (If b' m2 (Nil, t), t)), t)
-      m@(If _ _ _, _) -> (If b' m (Nil, t), t)
+      v@(If _ _ _, _) -> (If b' v (Nil, t), t)
       v -> error $ "unexpected normal form in conditional body in normTerm: " ++
                     show v
 normTerm env (If b@(_,bTy) m n, t@(TList _)) = -- n /= Nil
@@ -73,13 +72,13 @@ normTerm env (If b m n, t@(TRecord fTys)) =
     let b' = normTerm env b in
     let (Record mFields, _) = normTerm env m
         (Record nFields, _) = normTerm env n in
-    (Record[(l, (If b' (image l mFields) (image l nFields), (image l fTys)))
-            | (l, _) <- mFields],
+    (Record [(l, (If b' (image l mFields) (image l nFields), (image l fTys)))
+             | (l, _) <- mFields],
      t)
 normTerm env (If b m n, t) = 
     (If (normTerm env b) (normTerm env m) (normTerm env n), t)
 normTerm env (Singleton m, t) = (Singleton (normTerm env m), t)
-normTerm env (Nil, t) = (Nil, t)
+normTerm _env (Nil, t) = (Nil, t)
 normTerm env (m `Union` n, t) = ((normTerm env m) `Union` (normTerm env n), t)
 normTerm env (Record fields, t) =
     (Record [(a, normTerm env m) | (a, m) <- fields], t)
@@ -89,10 +88,13 @@ normTerm env (Project m a, t) =
                               Just x -> x ; Nothing -> error$"no field " ++ a
       -- ah, the following not necessary because if pushes into records.
       (If b m' n',_)-> normTerm env (If b (Project m' a, t) (Project n' a, t), t)
-      (m@(Var x, t)) -> (Project m a, t)
+      (v@(Var _x, _)) -> (Project v a, t)
       v -> error $ "Unexpected normal form in body of Project in normTerm: " ++ 
                     show v
 normTerm env (Comp x m n, t) =
+    -- Insertion functions for rebuilding a term, dropping a
+    -- reconstructor k down through unions and compns (there must be a
+    -- better way!).
     let insert k ((v,t) :: TypedTerm) =
             case v of
               Nil -> (Nil, t)
@@ -110,11 +112,15 @@ normTerm env (Comp x m n, t) =
       (Singleton m', _) -> 
           forceAndReport (
             let !n' = substTerm x m' n in
+
             normTerm env (runTyCheck env n')
           ) ("susbtituting "++show m'++" for "++x++" in "++show n)
-      (Comp y l' m', s) ->
+      (Comp y l' m', _) ->
+          -- Freshen y-over-m with respect to n, the body of the outer
+          -- comprehension, because we're widening the scope of y to
+          -- include n.
           let (y', n') = if y `elem` fvs n then
-                             let y' = head $ variables \\ fvs n in
+                             let y' = minFreeFor n in
                              (y', rename y y' n)
                          else (y, n) 
           in
@@ -122,7 +128,7 @@ normTerm env (Comp x m n, t) =
       (m1 `Union` m2, _) ->
           ((normTerm env (Comp x m1 n, t)) `Union` 
            (normTerm env (Comp x m2 n, t)), t)
-      (tbl @ (Table s fTys, _)) ->
+      (tbl @ (Table _tableName fTys, _)) ->
           insert (\(v,t) -> (Comp x tbl (v,t), t)) $
                  let env' = Type.bind x ([],TList(TRecord fTys)) env in 
                  normTerm env' n
@@ -130,41 +136,70 @@ normTerm env (Comp x m n, t) =
           assert (x `notElem` fvs b) $
           let v = normTerm env (Comp x m' n, t) in
           insertFurther (\(v,t) -> (If b (v,t) (Nil, t), t)) v
---           insert  (\(v,t) -> (Comp x m' (v,t), t)) $
---             insertFurther (\(v,t) -> (If b (v,t) (Nil, t), t)) (normTerm env n)
-      v -> error$ "unexpected normal form in source of comprehension: " ++ show v
+      v -> error $
+             "unexpected normal form in source part of comprehension: " ++
+             show v
 
--- | compileTerm homomorphically translates a normal-form Term to an SQL Query.
-compileTerm :: TypedTerm -> Query
-compileTerm (v `Union` u, _) = (compileTerm v) `QUnion` (compileTerm u)
-compileTerm (Nil, _) = Select {rslt=QRecord[],tabs=[],cond=[QBool False]}
-compileTerm (f@(Comp x (Table tabname fTys, _) n, _))               = compileF f
-compileTerm (f@(If b z (Nil, _), _))                                = compileF f
-compileTerm (f@(Singleton (Record fields, _), _))                   = compileF f
-compileTerm (f@(Table tabname fTys, _))                             = compileF f
-compileTerm x = 
-    error $ "compileTerm got unexpected term: " ++ (pretty.fst) x
+-- See (Bird 2010) for a better algorithm here.
+minFreeFor :: Term a -> Var
+minFreeFor n = head $ variables \\ fvs n 
 
-compileF (Comp x (Table tabname fTys, _) n, _) =
-    let q@(Select _ _ _) = compileF n in
-    Select {rslt=rslt q, tabs = (tabname, x, TRecord fTys):tabs q, cond = cond q}
-compileF (z@(If _ _ (Nil, _), _))                                   = compileZ z
-compileF (z@(Singleton (Record fields, _), _))                      = compileZ z
-compileF (z@(Table tabname fTys, _))                                = compileZ z
+-- | translateTerm homomorphically translates a normal-form Term to an
+-- | SQL Query.
+translateTerm :: TypedTerm -> Query
+translateTerm (v `Union` u, _) = (translateTerm v) `QUnion` (translateTerm u)
+translateTerm (Nil, _)         = Narc.SQL.emptyQuery
+translateTerm (f@(Comp _ (Table _ _, _) _, _))                  = translateF f
+translateTerm (f@(If _ _ (Nil, _), _))                          = translateF f
+translateTerm (f@(Singleton (Record _, _), _))                  = translateF f
+translateTerm (f@(Table _ _, _))                                = translateF f
+translateTerm x = 
+    error $ "translateTerm got unexpected term: " ++ (pretty.fst) x
 
-compileZ (If b z (Nil, _), _) =
-    let q@(Select _ _ _) = compileZ z in
-    Select {rslt=rslt q, tabs = tabs q, cond = compileB b : cond q}
-compileZ (Singleton (Record fields, _), _) = 
-    Select {rslt = QRecord(alistmap compileB fields), tabs = [], cond = []}
-compileZ (Table tabname fTys, _) =
-    Select {rslt = QRecord[(l,QField tabname l)| (l,ty) <- fTys],
+-- translateF, translateZ and translateB are named after the syntactic
+-- classes (in the grammar of the normalized form) which they handle.
+-- (F for "for comprehension", Z for "final bit of a nest of
+-- comprehensions", and B for "base type"
+translateF (Comp x (Table tabname fTys, _) n, _) =
+    let q@(Select _ _ _) = translateF n in
+    Select {rslt = rslt q,
+            tabs = (tabname, x, TRecord fTys):tabs q,
+            cond = cond q}
+translateF (z@(If _ _ (Nil, _), _))                             = translateZ z
+translateF (z@(Singleton (Record _, _), _))                     = translateZ z
+translateF (z@(Table _ _, _))                                   = translateZ z
+translateF m = error $ "translateF for unexpected term: " ++ pretty (fst m)
+
+translateZ (If b z (Nil, _), _) =
+    let q@(Select _ _ _) = translateZ z in
+    Select {rslt=rslt q, tabs = tabs q, cond = translateB b : cond q}
+translateZ (Singleton (Record fields, _), _) = 
+    Select {rslt = QRecord(alistmap translateB fields), tabs = [], cond = []}
+translateZ (Table tabname fTys, _) =
+    Select {rslt = QRecord[(l,QField tabname l)| (l,_ty) <- fTys],
             tabs = [(tabname, tabname, TRecord fTys)], cond = []}
-compileZ z = error$ "compileZ got unexpected term: " ++ (pretty.fst) z
+translateZ z = error$ "translateZ got unexpected term: " ++ (pretty.fst) z
 
-compileB (If b b' b'', _)        = QIf (compileB b) (compileB b') (compileB b'') 
-compileB (Bool n, _)                 = (QBool n)
-compileB (Num n, _)                  = (QNum n)
-compileB (Project (Var x, _) l, _)   = QField x l
-compileB (PrimApp "not" [arg], _)    = QNot (compileB arg)
-compileB b = error$ "compileB got unexpected term: " ++ (pretty.fst) b
+translateB (If b b' b'', _)            = QIf (translateB b)
+                                           (translateB b') (translateB b'') 
+translateB (Bool n, _)                 = (QBool n)
+translateB (Num n, _)                  = (QNum n)
+translateB (Project (Var x, _) l, _)   = QField x l
+translateB (PrimApp "not" [arg], _)    = QNot (translateB arg)
+translateB b = error$ "translateB got unexpected term: " ++ (pretty.fst) b
+
+compile :: TyEnv -> TypedTerm -> Query
+compile env = translateTerm . normTerm env
+
+-- Tests
+
+-- -- FIXME: where does this belong? It tests a function internal to this
+-- -- module (normTerm) but uses testing apparatus that is defined at a
+-- -- "higher" layer (Narc.Test) and uses an otherwise unrelated module
+-- -- (Narc.Eval).
+-- prop_norm_sound :: TyEnv -> Env -> Property
+-- prop_norm_sound tyEnv env =
+--   forAll (sized (termGen (dom env))) $ \m ->
+--       isErrorMSuccess $ tryErrorGensym $ 
+--       do m' <- infer m
+--          return (eval env (normTerm tyEnv m') == eval env m')
