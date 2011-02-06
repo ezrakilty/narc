@@ -134,7 +134,8 @@ serializeRow (QRecord flds) =
 serializeAtom (QNum i) = show i
 serializeAtom (QBool b) = show b
 serializeAtom (QNot expr) = "not(" ++ serializeAtom expr ++ ")"
-serializeAtom (QOp l op r) = undefined
+serializeAtom (QOp l op r) = 
+    serializeAtom l ++ " " ++ serializeOp op ++ " " ++ serializeAtom r
 serializeAtom (QField rec fld) = rec ++ "." ++ fld
 serializeAtom (QIf cond l r) = 
     "case when " ++ serializeAtom cond ++
@@ -143,3 +144,10 @@ serializeAtom (QIf cond l r) =
     " end)"
 serializeAtom (QExists q) =
     "exists (" ++ serialize q ++ ")"
+
+serializeOp Eq = "="
+serializeOp Less = "<"
+serializeOp Plus = "<"
+serializeOp Minus = "<"
+serializeOp Times = "<"
+serializeOp Divide = "<"

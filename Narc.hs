@@ -126,8 +126,21 @@ example' = let t = (table' "foo" [("a", TBool)]) in
            (where' (project' x "a")
              (singleton' x))
 
+example2' = let t = (table' "foo" [("a", TNum)]) in
+            let s = (table' "bar" [("a", TNum)]) in
+            foreach' t $ \x -> 
+            foreach' s $ \y -> 
+            ifthenelse' (primApp' "<" [project' x "a", project' y "a"])
+             (singleton' x)
+             (singleton' y)
+
+-- Unit tests ----------------------------------------------------------
+
 test_example =
     TestList [
         serialize (fullyCompile (realize example'))
         ~?= "select _0.a as a from foo as _0 where _0.a"
+        ,
+        serialize (fullyCompile (realize example2'))
+        ~?= "(select _0.a as a from foo as _0, bar as _1 where _0.a < _1.a) union (select _1.a as a from foo as _0, bar as _1 where not(_0.a < _1.a))"
     ]

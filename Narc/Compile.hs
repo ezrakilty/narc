@@ -65,9 +65,9 @@ normTerm env (If b m (Nil, _), t@(TList _)) =
       v@(If _ _ _, _) -> (If b' v (Nil, t), t)
       v -> error $ "unexpected normal form in conditional body in normTerm: " ++
                     show v
-normTerm env (If b@(_,bTy) m n, t@(TList _)) = -- n /= Nil
+normTerm env (If b@(_,bTy) m n, t@(TList _)) = -- The case where n /= Nil
     ((normTerm env (If b m (Nil, t), t)) `Union` 
-     (normTerm env (If (PrimApp "not" [b], bTy) m (Nil, t), t)), t)
+     (normTerm env (If (PrimApp "not" [b], bTy) n (Nil, t), t)), t)
 normTerm env (If b m n, t@(TRecord fTys)) =
     let b' = normTerm env b in
     let (Record mFields, _) = normTerm env m
@@ -82,19 +82,23 @@ normTerm _env (Nil, t) = (Nil, t)
 normTerm env (m `Union` n, t) = ((normTerm env m) `Union` (normTerm env n), t)
 normTerm env (Record fields, t) =
     (Record [(a, normTerm env m) | (a, m) <- fields], t)
-normTerm env (Project m a, t) = 
-    case normTerm env m of
-      (Record fields, _) -> case (lookup a fields) of 
-                              Just x -> x ; Nothing -> error$"no field " ++ a
-      -- ah, the following not necessary because if pushes into records.
-      (If b m' n',_)-> normTerm env (If b (Project m' a, t) (Project n' a, t), t)
-      (v@(Var _x, _)) -> (Project v a, t)
+normTerm env (Project argTerm label, t) = 
+    case normTerm env argTerm of
+      (Record fields, _) -> case (lookup label fields) of 
+                              Just x -> x 
+                              Nothing -> error $ "no field " ++ label
+      -- ah, the following not necessary because If pushes into records.
+      (If cond v1 v2,_) ->
+          normTerm env (If cond
+                        (Project v1 label, t)
+                        (Project v2 label, t), t)
+      v@(Var _x, _) -> (Project v label, t)
       v -> error $ "Unexpected normal form in body of Project in normTerm: " ++ 
                     show v
-normTerm env (Comp x m n, t) =
+normTerm env (Comp x src body, t) =
     -- Insertion functions for rebuilding a term, dropping a
-    -- reconstructor k down through unions and compns (there must be a
-    -- better way!).
+    -- reconstructor k down through unions and compr'ns (there must be
+    -- a better way!).
     let insert k ((v,t) :: TypedTerm) =
             case v of
               Nil -> (Nil, t)
@@ -107,35 +111,34 @@ normTerm env (Comp x m n, t) =
                   ((insertFurther k n1) `Union` (insertFurther k n2), t)
               Comp x m n -> (Comp x m (insertFurther k n), t)
               _ -> k (v,t)
-    in case normTerm env m of
+    in case normTerm env src of
       (Nil, _) -> (Nil, t)
-      (Singleton m', _) -> 
+      (Singleton src', _) -> 
           forceAndReport (
-            let !n' = substTerm x m' n in
-
+            let !n' = substTerm x src' body in
             normTerm env (runTyCheck env n')
-          ) ("susbtituting "++show m'++" for "++x++" in "++show n)
-      (Comp y l' m', _) ->
-          -- Freshen y-over-m with respect to n, the body of the outer
-          -- comprehension, because we're widening the scope of y to
-          -- include n.
-          let (y', n') = if y `elem` fvs n then
-                             let y' = minFreeFor n in
-                             (y', rename y y' n)
-                         else (y, n) 
+          ) ("susbtituting "++show src'++" for "++x++" in "++show body)
+      (Comp y src2 body2, _) ->
+          -- Freshen y-over-src with respect to body (that of the outer
+          -- comprehension), because we're widening the scope of y to
+          -- include body.
+          let (y', body') = if y `elem` fvs body then
+                              let y' = minFreeFor body in
+                              (y', rename y y' body)
+                         else (y, body)
           in
-            (normTerm env (Comp y' l' (Comp x m' n', t), t))
-      (m1 `Union` m2, _) ->
-          ((normTerm env (Comp x m1 n, t)) `Union` 
-           (normTerm env (Comp x m2 n, t)), t)
-      (tbl @ (Table _tableName fTys, _)) ->
+            (normTerm env (Comp y' src2 (Comp x body2 body', t), t))
+      (srcL `Union` srcR, _) ->
+          ((normTerm env (Comp x srcL body, t)) `Union` 
+           (normTerm env (Comp x srcR body, t)), t)
+      (tbl @ (Table _tableName fieldTys, _)) ->
           insert (\(v,t) -> (Comp x tbl (v,t), t)) $
-                 let env' = Type.bind x ([],TList(TRecord fTys)) env in 
-                 normTerm env' n
-      (If b m' (Nil, _), _) ->
-          assert (x `notElem` fvs b) $
-          let v = normTerm env (Comp x m' n, t) in
-          insertFurther (\(v,t) -> (If b (v,t) (Nil, t), t)) v
+                 let env' = Type.bind x ([],TList(TRecord fieldTys)) env in 
+                 normTerm env' body
+      (If cond src' (Nil, _), _) ->
+          assert (x `notElem` fvs cond) $
+          let v = normTerm env (Comp x src' body, t) in
+          insertFurther (\(v,t) -> (If cond (v,t) (Nil, t), t)) v
       v -> error $
              "unexpected normal form in source part of comprehension: " ++
              show v
@@ -186,6 +189,7 @@ translateB (Bool n, _)                 = (QBool n)
 translateB (Num n, _)                  = (QNum n)
 translateB (Project (Var x, _) l, _)   = QField x l
 translateB (PrimApp "not" [arg], _)    = QNot (translateB arg)
+translateB (PrimApp "<" [l, r], _)     = QOp (translateB l) Less (translateB r)
 translateB b = error$ "translateB got unexpected term: " ++ (pretty.fst) b
 
 compile :: TyEnv -> TypedTerm -> Query
