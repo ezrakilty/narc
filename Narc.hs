@@ -117,13 +117,17 @@ foreach' src k = do
   body' <- k (return (var x))
   return $ (!)(Comp x src' body')
 
+where' cond body = ifthenelse' cond body nil'
 
 -- Example query -------------------------------------------------------
 
 example' = let t = (table' "foo" [("a", TBool)]) in
            foreach' t $ \x -> 
-           (ifthenelse' (project' x "a")
-            (singleton' x) 
-            nil')
+           (where' (project' x "a")
+             (singleton' x))
 
--- Try: fullyCompile (realize example')
+test_example =
+    TestList [
+        serialize (fullyCompile (realize example'))
+        ~?= "select _0.a as a from foo as _0 where _0.a"
+    ]

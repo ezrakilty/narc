@@ -1,10 +1,10 @@
 module Narc.SQL where
 
-import Data.List (nub)
+import Data.List (nub, intercalate)
 
 import Narc.Common
 import Narc.Type
-import Narc.Util (u, union)
+import Narc.Util (u, union, mapstrcat)
 
 --
 -- SQL Queries ---------------------------------------------------------
@@ -119,3 +119,27 @@ groundQueryExpr (QNum _) = True
 groundQueryExpr (QBool _) = True
 groundQueryExpr (QField _ _) = True
 groundQueryExpr (QIf c a b) = all groundQueryExpr [c,a,b]
+
+serialize :: Query -> String
+serialize q@(Select _ _ _) =
+    "select " ++ serializeRow (rslt q) ++
+    " from " ++ mapstrcat ", " (\(a, b, _) -> a ++ " as " ++ b) (tabs q) ++
+    " where " ++ mapstrcat " and " serializeAtom (cond q)
+serialize (QUnion l r) =
+    "(" ++ serialize l ++ ") union (" ++ serialize r ++ ")"
+
+serializeRow (QRecord flds) =
+    mapstrcat ", " (\(x, expr) -> serializeAtom expr ++ " as " ++ x) flds
+
+serializeAtom (QNum i) = show i
+serializeAtom (QBool b) = show b
+serializeAtom (QNot expr) = "not(" ++ serializeAtom expr ++ ")"
+serializeAtom (QOp l op r) = undefined
+serializeAtom (QField rec fld) = rec ++ "." ++ fld
+serializeAtom (QIf cond l r) = 
+    "case when " ++ serializeAtom cond ++
+    " then " ++ serializeAtom l ++
+    " else " ++ serializeAtom r ++
+    " end)"
+serializeAtom (QExists q) =
+    "exists (" ++ serialize q ++ ")"
