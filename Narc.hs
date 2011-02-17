@@ -7,8 +7,8 @@ import Prelude hiding (catch)
 import Control.Exception (catch, throwIO, evaluate, SomeException)
 import Control.Monad.State hiding (when, join)
 import Control.Monad.Error (throwError, runErrorT, Error(..))
-import List (nub, (\\), sort, sortBy, groupBy, intersperse)
-import Maybe (fromJust, isJust, fromMaybe)
+import Data.List (nub, (\\), sort, sortBy, groupBy, intersperse)
+import Data.Maybe (fromJust, isJust, fromMaybe)
 
 import Control.Applicative ((<$>), (<*>))
 import Foreign (unsafePerformIO)            -- FIXME
