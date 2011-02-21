@@ -88,20 +88,13 @@ nonNegInt = fmap abs arbitrary
 
 expIntGen n = frequency [(1, return n), (1, expIntGen (n+1))]
 
--- {- Test your generators: genN -}
--- -- Supplanted by QC2's sample, I guess.
-
--- -- Given a generator $gen$, generate the first $n$ things of size
--- -- $size$ gen'd by generator $gen$.
--- genN size n gen = 
---     [generate size (mkStdGen i) gen | i <- [0..n-1]]
-
 -- Combinators for writing conditional generators
 
 when p e = if p then [e] else []
 whens p e = if p then e else []
 
 {- Configurations for small, big, and huge test runs -}
+
 small = stdArgs
 
 big = Args {maxSuccess = 1000,
@@ -141,7 +134,7 @@ arbSubset xs = do n <- posInt :: Gen Int
 genEnv :: (Arbitrary a, Num a, Enum a, Arbitrary b) => a -> Gen [(a, b)]
 genEnv min = 
     do n <- arbitrary
-       sequence [do ty <- arbitrary; return (i, ty) -- TBD: use forM.
+       sequence [do ty <- arbitrary; return (i, ty)
                  | i <- [min..min+pred(abs n)]]
 
 failProp = property False

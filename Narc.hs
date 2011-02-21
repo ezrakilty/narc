@@ -1,7 +1,27 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Narc where
+-- | Query SQL databases using Nested Relational Calculus embedded in
+-- Haskell.
+-- 
+-- The primed functions in this module are in fact the basic syntactic 
+-- forms of the embedded language. Use them as, for example:
+-- 
+-- @
+--   foreach' (table' "employees" []) $ \emp ->
+--     where' (primApp' "<" [cnst' 20000, project' emp "salary"]) $
+--     singleton' (record' [(project' emp "name")])
+-- @
+
+module Narc (-- * The type of the embedded terms
+             GTerm,
+             -- * Translation to an SQL representation
+             fullyCompileGTerm,
+             -- * The language itself
+             unit', Const', primApp', abs', app', ifthenelse', singleton',
+             nil', record', project', foreach'
+            )
+    where
 
 import Prelude hiding (catch)
 import Control.Exception (catch, throwIO, evaluate, SomeException)
@@ -37,9 +57,12 @@ import Narc.Util
 
 -- THE AWESOME FULL COMPILATION FUNCTION -------------------------------
 
+fullyCompile :: Term a -> Query
 fullyCompile = compile [] . runTyCheck []
 
 -- Builders ------------------------------------------------------------
+
+-- Explicit-named builders
 
 (!) x = (x, ())
 
@@ -60,7 +83,7 @@ record fields = (!)(Record fields)
 project body field = (!)(Project body field)
 foreach src x body = (!)(Comp x src body)
 
--- Example query -------------------------------------------------------
+-- Example query
 
 example_dull = (Comp "x" (Table "foo" [("a", TBool)], ())
                 (If (Project (Var "x", ()) "a", ())
@@ -69,47 +92,79 @@ example_dull = (Comp "x" (Table "foo" [("a", TBool)], ())
 
 -- HOAS-ish builders
 
-type HOASTerm = Gensym (Term ()) -- Bleck. Rename.
+type GTerm = Gensym (Term ()) -- Bleck. Rename.
 
-realize :: HOASTerm -> Term ()
+realize :: GTerm -> Term ()
 realize = runGensym
 
-unit' :: HOASTerm
+fullyCompileGTerm :: GTerm -> Query
+fullyCompileGTerm = fullyCompile . realize
+
+-- | A dummy value, or zero-width record.
+unit' :: GTerm
 unit' = return $ (!) Unit
 
-primApp' :: String -> [HOASTerm] -> HOASTerm
+-- | A polymorphic way of embedding constants into a term.
+class Const' a where cnst' :: a -> GTerm
+instance Const' Bool where cnst' b = return ((!)(Bool b))
+instance Const' Integer where cnst' n = return ((!)(Num n))
+
+-- | Apply some primitive function, such as @(+)@ or @avg@, to a list
+-- of arguments.
+primApp' :: String -> [GTerm] -> GTerm
 primApp' f args =  (!) . PrimApp f <$> sequence args
 
-abs' :: (String -> HOASTerm) -> HOASTerm
+-- | Create a functional abstraction.
+abs' :: (String -> GTerm) -> GTerm
 abs' fn = do
   n <- gensym
   let x = '_' : show n
   body <- fn x
   return $ (!) $ Abs x body
 
-app' :: HOASTerm -> HOASTerm -> HOASTerm
+-- | Apply a functional term to an argument.
+app' :: GTerm -> GTerm -> GTerm
 app' l m = (!) <$> (App <$> l <*> m)
 
+-- | A reference to a named database table; second argument is its
+-- schema type.
+table' :: Tabname -> [(Field, Type)] -> GTerm
 table' tbl ty = return $ (!) $ Table tbl ty
 
-ifthenelse' :: HOASTerm -> HOASTerm -> HOASTerm -> HOASTerm
+-- | A condition between two terms, as determined by the boolean value
+-- of the first term.
+ifthenelse' :: GTerm -> GTerm -> GTerm -> GTerm
 ifthenelse' c t f = (!) <$> (If <$> c <*> t <*> f)
 
-singleton' :: HOASTerm -> HOASTerm
+-- | A singleton collection of one item.
+singleton' :: GTerm -> GTerm
 singleton' x = (!) . Singleton <$> x
 
-nil' :: HOASTerm
+-- | An empty collection.
+nil' :: GTerm
 nil' = return $ (!) $ Nil
 
+-- | The union of two collections
+onion' :: GTerm -> GTerm -> GTerm
 onion' l r = (!) <$> (Union <$> l <*> r)
 
-record' :: [(String, HOASTerm)] -> HOASTerm
+-- | Construct a record (name-value pairs) out of other terms; usually
+-- used, with base values for the record elements, as the final
+-- result of a query, corresponding to the @select@ clause of a SQL
+-- query, but can also be used with nested results internally in a
+-- query.
+record' :: [(String, GTerm)] -> GTerm
 record' fields = (!) <$> (Record <$> sequence [do expr' <- expr ; return (lbl, expr') | (lbl, expr) <- fields])
 
-project' :: HOASTerm -> String -> HOASTerm
+-- | Project a field out of a record value.
+project' :: GTerm -> String -> GTerm
 project' expr field = (!) <$> (Project <$> expr <*> return field)
 
-foreach' :: HOASTerm -> (HOASTerm -> HOASTerm) -> HOASTerm
+-- | For each item in the collection resulting from the first
+-- argument, give it to the function which is the second argument
+-- and evaluate--this corresponds to a loop, or two one part of a
+-- cross in traditional SQL queries.
+foreach' :: GTerm -> (GTerm -> GTerm) -> GTerm
 foreach' src k = do
   src' <- src
   n <- gensym
@@ -117,9 +172,12 @@ foreach' src k = do
   body' <- k (return (var x))
   return $ (!)(Comp x src' body')
 
+-- | Filter the current iteration as per the condition in the first
+-- argument. Corresponds to a @where@ clause in a SQL query.
+where' :: GTerm -> GTerm -> GTerm
 where' cond body = ifthenelse' cond body nil'
 
--- Example query -------------------------------------------------------
+-- Example query
 
 example' = let t = (table' "foo" [("a", TBool)]) in
            foreach' t $ \x -> 
