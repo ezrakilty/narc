@@ -9,7 +9,7 @@ import Narc.Util (alistmap, u, union)
 type Var = String
 
 -- | Terms in the nested relational calculus.
-data Term' a = Unit | Bool Bool | Num Integer | PrimApp String [Term a]
+data Term' a = Unit | Bool Bool | Num Integer | String String | PrimApp String [Term a]
              | Var Var | Abs Var (Term a) | App (Term a) (Term a)
              | Table Tabname [(Field, Type)]
              | If (Term a) (Term a) (Term a)
@@ -35,6 +35,7 @@ type TypedTerm = Term Type
 fvs (Unit, _) = []
 fvs (Bool _, _) = []
 fvs (Num _, _) = []
+fvs (String _, _) = []
 fvs (PrimApp prim args, _) = union $ map fvs args
 fvs (Var x, _) = [x]
 fvs (Abs x n, _) = fvs n \\ [x]
@@ -65,7 +66,7 @@ rename x y (Comp z src body, q)
                let body' = rename y y' body in
                  (Comp z (rename x y src) (rename x y body'), q)
     | otherwise= (Comp z (rename x y src) (rename x y body), q)
-rename x y (Num n, q) = (Num n, q)
+rename x y (String n, q) = (String n, q)
 rename x y (Bool b, q) = (Bool b, q)
 rename x y (Table s t, q) = (Table s t, q)
 rename x y (If c a b, q) = (If (rename x y c) (rename x y a) (rename x y b), q)
@@ -79,6 +80,7 @@ substTerm :: Var -> Term t -> Term t -> Term t
 substTerm x v (m@(Unit, _))       = m
 substTerm x v (m@(Bool b, _))     = m
 substTerm x v (m@(Num n, _))      = m
+substTerm x v (m@(String s, _))   = m
 substTerm x v (m@(Table s t, _))  = m
 substTerm x v (m@(Nil, _))        = m
 substTerm x v (Singleton elem, q) = (Singleton (substTerm x v elem), q)
@@ -129,6 +131,7 @@ lazyDepth _ = 1 : []
 entagulate :: (Term a -> b) -> Term a -> Term b
 entagulate f (Bool b, d) = (Bool b, f (Bool b, d))
 entagulate f (Num n, d) = (Num n, f (Num n, d))
+entagulate f (String s, d) = (String s, f (String s, d))
 entagulate f (Var x, d) = (Var x, f (Var x, d))
 entagulate f (Abs x n, d) = (Abs x (entagulate f n), f (Abs x n, d))
 entagulate f (App l m, d) = (App (entagulate f l) (entagulate f m),
@@ -159,6 +162,7 @@ retagulate :: (Term a -> a) -> Term a -> Term a
 retagulate f (Unit, d) = (Unit, f (Unit, d))
 retagulate f (Bool b, d) = (Bool b, f (Bool b, d))
 retagulate f (Num n, d) = (Num n, f (Num n, d))
+retagulate f (String s, d) = (String s, f (String s, d))
 retagulate f (Var x, d) = (Var x, f (Var x, d))
 retagulate f (Abs x n, d) = (Abs x (retagulate f n),
                              f (Abs x (retagulate f n), d))
@@ -202,6 +206,7 @@ numComps (Union a b, _) = numComps a + numComps b
 numComps (Unit, _) = 0
 numComps (Bool _, _) = 0
 numComps (Num _, _) = 0
+numComps (String _, _) = 0
 numComps (Var _, _) = 0
 numComps (Table _ _, _) = 0
 numComps (If c a b, _) = numComps c + numComps a + numComps b

@@ -7,11 +7,9 @@
 -- The primed functions in this module are in fact the basic syntactic 
 -- forms of the embedded language. Use them as, for example:
 -- 
--- @
---   foreach' (table' "employees" []) $ \emp ->
---     where' (primApp' "<" [cnst' 20000, project' emp "salary"]) $
---     singleton' (record' [(project' emp "name")])
--- @
+-- >  foreach' (table' "employees" []) $ \emp ->
+-- >    where' (primApp' "<" [cnst' 20000, project' emp "salary"]) $
+-- >    singleton' (record' [(project' emp "name")])
 
 module Narc (-- * The type of the embedded terms
              GTerm,
@@ -192,6 +190,12 @@ example2' = let t = (table' "foo" [("a", TNum)]) in
              (singleton' x)
              (singleton' y)
 
+example3' =
+    let t = table' "employees" [("name", TString), ("salary", TNum)] in
+    foreach' t $ \emp ->
+    where' (primApp' "<" [cnst' (20000::Integer), project' emp "salary"]) $
+      singleton' (record' [("nom", project' emp "name")])
+
 -- Unit tests ----------------------------------------------------------
 
 test_example =
@@ -200,5 +204,8 @@ test_example =
         ~?= "select _0.a as a from foo as _0 where _0.a"
         ,
         serialize (fullyCompile (realize example2'))
+        ~?= "(select _0.a as a from foo as _0, bar as _1 where _0.a < _1.a) union (select _1.a as a from foo as _0, bar as _1 where not(_0.a < _1.a))"
+        ,
+        serialize (fullyCompile (realize example3'))
         ~?= "(select _0.a as a from foo as _0, bar as _1 where _0.a < _1.a) union (select _1.a as a from foo as _0, bar as _1 where not(_0.a < _1.a))"
     ]

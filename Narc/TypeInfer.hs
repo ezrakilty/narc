@@ -21,6 +21,7 @@ type TyEnv = [(Var, QType)]
 
 isBaseTy TBool = True
 isBaseTy TNum  = True
+isBaseTy TString  = True
 isBaseTy _     = False
 
 isTyVar (TVar _) = True
@@ -60,6 +61,9 @@ tyCheck env (Bool b, _) =
 tyCheck env (Num n, _) = 
     do let ty = (TNum)
        return (emptyTySubst, (Num n, ty))
+tyCheck env (String s, _) = 
+    do let ty = (TString)
+       return (emptyTySubst, (String s, ty))
 tyCheck env (Table t tys, _) =
     do let ty = (TList (TRecord tys))
        return (emptyTySubst, (Table t tys, ty))
@@ -116,7 +120,7 @@ tyCheck env (Record fields, _) =
                 (TRecord [(name,ty)| (ty, name) <- zip fieldTys fieldNames])))
 tyCheck env (Project m f, _) =
     do rowVar <- lift gensym; a <- lift gensym
-       (tySubst, m'@(_, (mTy))) <- tyCheck env m
+       (tySubst, m'@(_, mTy)) <- tyCheck env m
        case mTy of
          TVar x ->     -- Note: bogus
                 return (((x, TRecord [(f, TVar a)]):tySubst),

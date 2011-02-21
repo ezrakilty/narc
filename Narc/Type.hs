@@ -17,7 +17,7 @@ import Narc.Util (dom, rng, image, alistmap, sortAlist, onCorresponding,
 
 type TyVar = Int
 
-data Type = TBool | TNum | TUnit | TList Type
+data Type = TBool | TNum | TString | TUnit | TList Type
           | TArr Type Type
           | TRecord [(String, Type)]
           | TVar TyVar
@@ -32,6 +32,7 @@ type TySubst = [(Int, Type)]
 -- | ftvs: free type variables
 ftvs TBool = []
 ftvs TNum = []
+ftvs TString = []
 ftvs TUnit = []
 ftvs (TList t) = ftvs t
 ftvs (TArr s t) = ftvs s ++ ftvs t
@@ -54,11 +55,13 @@ occurs x (TRecord t) = any (occurs x) (map snd t)
 occurs x (TUnit) = False
 occurs x (TBool) = False
 occurs x (TNum) = False
+occurs x (TString) = False
 
 applyTySubst :: TySubst -> Type -> Type
 applyTySubst subst (TUnit) = TUnit
 applyTySubst subst (TBool) = TBool
 applyTySubst subst (TNum) = TNum
+applyTySubst subst (TString) = TString
 applyTySubst subst (TVar a) = case lookup a subst of
                               Nothing -> TVar a
                               Just ty -> ty
@@ -81,6 +84,7 @@ instantiate (qs, ty) =
 normalizeType :: Type -> State (Int, [(Int, Int)]) Type
 normalizeType TBool = return TBool
 normalizeType TNum = return TNum
+normalizeType TString = return TString
 normalizeType TUnit = return TUnit
 normalizeType (TList ty) = TList <$> normalizeType ty
 normalizeType (TRecord recTy) = undefined
@@ -101,6 +105,7 @@ instanceOf :: Type -> Type -> Failure ()
 instanceOf ty1 (TVar x) = return ()
 instanceOf TBool TBool = return ()
 instanceOf TNum TNum = return ()
+instanceOf TString TString = return ()
 instanceOf (TArr s t) (TArr u v) = 
     instanceOf t v >>
     instanceOf s u
@@ -124,6 +129,7 @@ unify t (TVar x) | not (x `occurs` t) = return ([(x, t)])
                                     show t ++ " and " ++ show (TVar x))
 unify TBool TBool = return ([])
 unify TNum TNum = return ([])
+unify TString TString = return ([])
 unify (TArr s t) (TArr u v) = 
     do substSU <- unify s u
        substTV <- unify (applyTySubst substSU t)
@@ -136,7 +142,7 @@ unify (TRecord a) (TRecord b) =
     in
       do substs <- sequence
                 [if ax == bx then unify ay by else
-                     fayl("fields " ++ ax ++ " and " ++ bx ++ " mismatched.")
+                     fayl("Record types " ++ show a' ++ " and " ++ show b' ++ " mismatched.")
                  | ((ax, ay), (bx, by)) <- zip a' b']
          let (tySubsts) = substs
          subst <- composeTySubst tySubsts
@@ -188,6 +194,7 @@ instance Arbitrary Type where
         oneof
           [ return TBool
           , return TNum
+          , return TString
           , do s <- arbitrary
                t <- arbitrary
                return (TArr s t)
