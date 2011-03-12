@@ -14,6 +14,7 @@ import Narc.Failure (Failure, fayl)
 import Narc.Failure.QuickCheck
 import Narc.Util (dom, rng, image, alistmap, sortAlist, onCorresponding,
                      disjointAlist, validEnv, eqUpTo)
+import Narc.Var
 
 type TyVar = Int
 
@@ -27,7 +28,29 @@ type QType = ([TyVar], Type)
 
 type TySubst = [(Int, Type)]
 
+type TyEnv = [(Var, QType)]
+
 -- Operations on types, rows and substitutions ------------------------
+
+isBaseTy TBool = True
+isBaseTy TNum  = True
+isBaseTy TString  = True
+isBaseTy _     = False
+
+isTyVar (TVar _) = True
+isTyVar _        = False
+
+isDBRecordTy (TRecord fields) = all (isBaseTy . snd) fields
+isDBRecordTy _                = False
+
+isRecordTy (TRecord fields) = True
+isRecordTy _                = False
+
+isDBTableTy (TList ty) = isDBRecordTy ty
+isDBTableTy _          = False
+
+emptyTySubst :: (TySubst)
+emptyTySubst = ([])
 
 -- | ftvs: free type variables
 ftvs TBool = []
@@ -142,7 +165,9 @@ unify (TRecord a) (TRecord b) =
     in
       do substs <- sequence
                 [if ax == bx then unify ay by else
-                     fayl("Record types " ++ show a' ++ " and " ++ show b' ++ " mismatched.")
+                     fayl ("Record types " ++ show a' ++ 
+                           " and " ++ show b' ++ 
+                           " mismatched.")
                  | ((ax, ay), (bx, by)) <- zip a' b']
          let (tySubsts) = substs
          subst <- composeTySubst tySubsts

@@ -14,14 +14,10 @@ import QCUtils
 
 import Narc.AST
 import Narc.Compile
-import Narc.Debug
-import Narc.Eval
 import Narc.Failure
-import Narc.Pretty
 import Narc.SQL
 import Narc.Type as Type
 import Narc.TypeInfer
-import Narc.Util
 import Narc.TermGen
 
 makeNormalizerTests :: ErrorGensym Test
@@ -80,4 +76,7 @@ prop_typedTermGen_tyCheck =
 -- Main ----------------------------------------------------------------
 
 main :: IO ()
-main = quickCheckWith tinyArgs prop_eval_safe
+main = do
+  quickCheckWith tinyArgs prop_eval_safe
+  _ <- runUnitTests
+  return ()

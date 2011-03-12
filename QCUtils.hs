@@ -90,7 +90,6 @@ expIntGen n = frequency [(1, return n), (1, expIntGen (n+1))]
 
 -- Combinators for writing conditional generators
 
-when p e = if p then [e] else []
 whens p e = if p then e else []
 
 {- Configurations for small, big, and huge test runs -}

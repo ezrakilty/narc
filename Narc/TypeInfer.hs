@@ -17,28 +17,6 @@ import Narc.Debug (debug)
 -- Type inference ------------------------------------------------------
 --
 
-type TyEnv = [(Var, QType)]
-
-isBaseTy TBool = True
-isBaseTy TNum  = True
-isBaseTy TString  = True
-isBaseTy _     = False
-
-isTyVar (TVar _) = True
-isTyVar _        = False
-
-isDBRecordTy (TRecord fields) = all (isBaseTy . snd) fields
-isDBRecordTy _                = False
-
-isRecordTy (TRecord fields) = True
-isRecordTy _                = False
-
-isDBTableTy (TList ty) = isDBRecordTy ty
-isDBTableTy _          = False
-
-emptyTySubst :: (TySubst)
-emptyTySubst = ([])
-
 tyCheckTerms env terms = 
     do results <- sequence [tyCheck env term | term <- terms]
        let (tySubsts, terms') = unzip results
@@ -49,7 +27,7 @@ tyCheckTerms env terms =
 -- | tyCheck env term infers a type for term in environment env.
 -- The environment has type [(Var, QType)];
 -- an entry (x, qty) indicates that variable x has the quantified type qty;
--- a qTy (ys, ty) indicates the type "forall ys, ty".
+-- a QType (ys, ty) indicates the type "forall ys, ty".
 tyCheck :: TyEnv -> Term a
         -> ErrorGensym (TySubst, Term Type)
 tyCheck env (Unit, _) = 
@@ -128,10 +106,10 @@ tyCheck env (Project m f, _) =
          TRecord fieldTys ->
                 case lookup f fieldTys of
                   Nothing -> fail("no field " ++ f ++ " in record " ++ 
-                                  (show $ strip m))
+                                  show (strip m))
                   Just fieldTy ->
-                      return ((tySubst),
-                              (Project m' f, (fieldTy)))
+                      return (tySubst,
+                              (Project m' f, fieldTy))
          _ -> fail("Project from non-record type.")
 tyCheck env (App m n, _) = 
     do a <- lift gensym; b <- lift gensym;
@@ -151,28 +129,25 @@ tyCheck env (App m n, _) =
        
        return (tySubst,
                (App m' n', (resultTy)))
-       
-tyCheck env (Comp x m n, d) = 
-    do (subst, term') <-
-            tyCheck env (App (App (Var "concatMap", d)
-                              (Abs x n, d), d) m, d)
-       let (App (App (Var "concatMap", _)
-                 (Abs x' n', _), _) m', ty) = term'
-       return (subst, (Comp x' m' n', ty))
+
+tyCheck env term@(Comp x src body, d) =
+    do (substSrc, src') <- tyCheck env src
+       let srcTy = typeAnno src'
+       a <- lift gensym
+       srcTySubst <- under $ unify (TList (TVar a)) srcTy
+       let srcTy' = applyTySubst srcTySubst (TVar a)
+       (substBody, body') <- tyCheck ((x, unquantType srcTy') : env) body
+       let bodyTy = typeAnno body'
+       resultSubst <- under $ composeTySubst [substSrc, substBody]
+       return (resultSubst, (Comp x src' body', bodyTy))
+
+unquantType ty = ([], ty)
+
+typeAnno :: Term Type -> Type
+typeAnno (_, ty) = ty
 
 makeInitialTyEnv :: ErrorGensym [(String, QType)]
-makeInitialTyEnv = 
-    do alpha <- lift gensym
-       beta <- lift gensym
-       return [("concatMap",
-                ([alpha, beta],
-                 TArr (TArr (TVar alpha) (TList (TVar beta))) 
-                    (TArr (TList (TVar alpha)) (TList (TVar beta))))
-               ),
-               ("+",
-                ([], TArr TNum
-                       (TArr TNum TNum))
-               )]
+makeInitialTyEnv = return []
 
 infer :: Term a -> ErrorGensym TypedTerm -- FIXME broken, discards subst'n
 infer term =

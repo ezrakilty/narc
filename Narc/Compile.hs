@@ -10,10 +10,16 @@ import Narc.AST.Pretty ()
 import Narc.Contract
 import Narc.Debug (forceAndReport)
 import Narc.Pretty
+import Narc.SQL
 import Narc.Type as Type
 import Narc.TypeInfer
-import Narc.Util (image, maps, alistmap)
-import Narc.SQL
+import Narc.Util (image, maps, alistmap, dom)
+
+-- -- Testing-related imports
+-- import Test.QuickCheck (Property, forAll, sized)
+-- import Narc.TermGen
+-- import Narc.Eval
+-- import Narc.Failure
 
 -- { Compilation } -----------------------------------------------------
 
@@ -24,12 +30,14 @@ etaExpand expr fieldTys =
              | (field, fTy) <- fieldTys], 
      exprTy)
 
--- | Normalize DB terms on a CBV evaluation strategy. First arg is an
--- environment: the variables it is ok not to normalize.
-normTerm :: [(String, QType)] -> TypedTerm -> TypedTerm
-normTerm _env (m@(Unit, _ty)) = m
-normTerm _env (m@(Bool _b, _)) = m
-normTerm _env (m@(Num _n, _)) = m
+-- | Normalize DB terms on a CBV evaluation strategy. 
+normTerm :: [(String, QType)] -- ^ An environment, typing all free vars.
+         -> TypedTerm         -- ^ The term to normalize.
+         -> TypedTerm
+normTerm _env (m@(Unit, _ty))   = m
+normTerm _env (m@(Bool _, _))   = m
+normTerm _env (m@(Num _, _))    = m
+normTerm _env (m@(String _, _)) = m
 normTerm env (PrimApp fun args, t) = (PrimApp fun (map (normTerm env) args), t)
 normTerm env (expr@(Var x, t)) = 
     -- Eta-expand at record type.
@@ -39,7 +47,8 @@ normTerm env (expr@(Var x, t)) =
           _ -> (Var x, t) 
     else
       error $ "Free variable "++ x ++ " in normTerm"
-normTerm env (Abs x n, t) = (Abs x n, t)
+normTerm _env (Abs x n, t) =
+    (Abs x n, t)
 normTerm env (App l m, t) = 
     let w = normTerm env m in
     case normTerm env l of 
@@ -50,20 +59,20 @@ normTerm env (App l m, t) =
           ) ("susbtituting "++show w++" for "++x++" in "++show n)
       (If b l1 l2, _) ->
           (normTerm env (If b (App l1 w, t) (App l2 w, t), t))
-      v@(Var x, _) -> (App v w, t)
+      v@(Var _, _) -> (App v w, t)
       v -> error $ "unexpected normal form in appl posn in normTerm " ++ show v
-normTerm env (Table s t, t') = (Table s t, t')
+normTerm _env (Table s t, t') = (Table s t, t')
 normTerm env (If b m (Nil, _), t@(TList _)) =
     let b' = normTerm env b in
     case normTerm env m of
-      (Nil, _) -> (Nil, t)
-      (Singleton m', _) -> (If b' (Singleton m', t) (Nil, t), t)
-      (Table s fTys, _) -> (If b' (Table s fTys, t) (Nil, t), t)
-      (Comp x l m', _) -> normTerm env (Comp x l (If b' m' (Nil, t), t), t)
+      (Nil, _)           -> (Nil, t)
+      (Singleton m', _)  -> (If b' (Singleton m', t) (Nil, t), t)
+      (Table s fTys, _)  -> (If b' (Table s fTys, t) (Nil, t), t)
+      (Comp x l m', _)   -> normTerm env (Comp x l (If b' m' (Nil, t), t), t)
       (m1 `Union` m2, _) -> ((normTerm env (If b' m1 (Nil, t), t)) `Union`
                              (normTerm env (If b' m2 (Nil, t), t)), t)
-      v@(If _ _ _, _) -> (If b' v (Nil, t), t)
-      v -> error $ "unexpected normal form in conditional body in normTerm: " ++
+      v@(If _ _ _, _)    -> (If b' v (Nil, t), t)
+      v -> error $ "Unexpected normal form in conditional body in normTerm: " ++
                     show v
 normTerm env (If b@(_,bTy) m n, t@(TList _)) = -- The case where n /= Nil
     ((normTerm env (If b m (Nil, t), t)) `Union` 
@@ -87,7 +96,7 @@ normTerm env (Project argTerm label, t) =
       (Record fields, _) -> case (lookup label fields) of 
                               Just x -> x 
                               Nothing -> error $ "no field " ++ label
-      -- ah, the following not necessary because If pushes into records.
+      -- Ah, the following not necessary because If pushes into records.
       (If cond v1 v2,_) ->
           normTerm env (If cond
                         (Project v1 label, t)
@@ -96,35 +105,20 @@ normTerm env (Project argTerm label, t) =
       v -> error $ "Unexpected normal form in body of Project in normTerm: " ++ 
                     show v
 normTerm env (Comp x src body, t) =
-    -- Insertion functions for rebuilding a term, dropping a
-    -- reconstructor k down through unions and compr'ns (there must be
-    -- a better way!).
-    let insert k ((v,t) :: TypedTerm) =
-            case v of
-              Nil -> (Nil, t)
-              n1 `Union` n2 -> ((insert k n1) `Union` (insert k n2), t)
-              _ -> k (v,t)
-        insertFurther k ((v,t) :: TypedTerm) =
-            case v of
-              Nil -> (Nil, t)
-              n1 `Union` n2 -> 
-                  ((insertFurther k n1) `Union` (insertFurther k n2), t)
-              Comp x m n -> (Comp x m (insertFurther k n), t)
-              _ -> k (v,t)
-    in case normTerm env src of
+    case normTerm env src of
       (Nil, _) -> (Nil, t)
       (Singleton src', _) -> 
           forceAndReport (
             let !n' = substTerm x src' body in
             normTerm env (runTyCheck env n')
-          ) ("susbtituting "++show src'++" for "++x++" in "++show body)
+          ) ("Substituting " ++ show src' ++ " for " ++ x ++ " in " ++ show body)
       (Comp y src2 body2, _) ->
-          -- Freshen y-over-src with respect to body (that of the outer
-          -- comprehension), because we're widening the scope of y to
-          -- include body.
+          -- Freshen @y@ over @src@ with respect to @body@ (that of
+          -- the outer comprehension), because we're widening the
+          -- scope of @y@ to include @body@.
           let (y', body') = if y `elem` fvs body then
-                              let y' = minFreeFor body in
-                              (y', rename y y' body)
+                              let newY = minFreeFor body in
+                              (newY, rename y newY body)
                          else (y, body)
           in
             (normTerm env (Comp y' src2 (Comp x body2 body', t), t))
@@ -132,16 +126,35 @@ normTerm env (Comp x src body, t) =
           ((normTerm env (Comp x srcL body, t)) `Union` 
            (normTerm env (Comp x srcR body, t)), t)
       (tbl @ (Table _tableName fieldTys, _)) ->
-          insert (\(v,t) -> (Comp x tbl (v,t), t)) $
+          insert (\(v',t') -> (Comp x tbl (v',t'), t')) $
                  let env' = Type.bind x ([],TList(TRecord fieldTys)) env in 
                  normTerm env' body
-      (If cond src' (Nil, _), _) ->
-          assert (x `notElem` fvs cond) $
+      (If cond' src' (Nil, _), _) ->
+          assert (x `notElem` fvs cond') $
           let v = normTerm env (Comp x src' body, t) in
-          insertFurther (\(v,t) -> (If cond (v,t) (Nil, t), t)) v
+          insertFurther (\(v',t') -> (If cond' (v',t') (Nil, t'), t')) v
       v -> error $
              "unexpected normal form in source part of comprehension: " ++
              show v
+
+-- Insertion functions for rebuilding a term, dropping a
+-- reconstructor k down through unions and compr'ns (there must be
+-- a better way!).
+insert :: (TypedTerm -> TypedTerm) -> TypedTerm -> TypedTerm
+insert k ((v,t) :: TypedTerm) =
+    case v of
+      Nil -> (Nil, t)
+      n1 `Union` n2 -> ((insert k n1) `Union` (insert k n2), t)
+      _ -> k (v,t)
+
+insertFurther :: (TypedTerm -> TypedTerm) -> TypedTerm -> TypedTerm
+insertFurther k ((v,t) :: TypedTerm) =
+    case v of
+      Nil -> (Nil, t)
+      n1 `Union` n2 -> 
+          ((insertFurther k n1) `Union` (insertFurther k n2), t)
+      Comp x m n -> (Comp x m (insertFurther k n), t)
+      _ -> k (v,t)
 
 -- See (Bird 2010) for a better algorithm here.
 minFreeFor :: Term a -> Var
@@ -195,7 +208,7 @@ translateB b = error$ "translateB got unexpected term: " ++ (pretty.fst) b
 compile :: TyEnv -> TypedTerm -> Query
 compile env = translateTerm . normTerm env
 
--- Tests
+-- -- Tests
 
 -- -- FIXME: where does this belong? It tests a function internal to this
 -- -- module (normTerm) but uses testing apparatus that is defined at a
@@ -203,7 +216,8 @@ compile env = translateTerm . normTerm env
 -- -- (Narc.Eval).
 -- prop_norm_sound :: TyEnv -> Env -> Property
 -- prop_norm_sound tyEnv env =
---   forAll (sized (termGen (dom env))) $ \m ->
+--   forAll (sized (typeGen [])) $ \t ->
+--   forAll (sized (typedTermGen tyEnv t)) $ \m ->
 --       isErrorMSuccess $ tryErrorGensym $ 
 --       do m' <- infer m
 --          return (eval env (normTerm tyEnv m') == eval env m')
