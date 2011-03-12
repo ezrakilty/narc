@@ -9,10 +9,15 @@ module Narc.AST (
   strip,
   retagulate,
   rename,
-  variables
+  variables,
+  (!),
+  unit_, Const, cnst_, primApp_, var_, abs_, app_, table_, ifthenelse_,
+  singleton_, nil_, union_, record_, project_, foreach_ 
 ) where
 
 import Data.List as List ((\\))
+
+import Prelude hiding (abs)
 
 import Narc.Common
 import Narc.Type
@@ -223,3 +228,24 @@ numComps (Var _, _) = 0
 numComps (Table _ _, _) = 0
 numComps (If c a b, _) = numComps c + numComps a + numComps b
 numComps (Nil, _) = 0
+
+-- Explicit-named builders
+
+(!) x = (x, ())
+
+unit_ = (!)Unit
+class Const a where cnst_ :: a -> Term ()
+instance Const Bool where cnst_ b = (!)(Bool b)
+instance Const Integer where cnst_ n = (!)(Num n)
+primApp_ f args = (!)(PrimApp f args)
+var_ x = (!)(Var x)
+abs_ x body = (!)(Abs x body)
+app_ l m = (!)(App l m)
+table_ tbl ty = (!)(Table tbl ty)
+ifthenelse_ c t f = (!)(If c t f)
+singleton_ x = (!)(Singleton x)
+nil_ = (!)Nil
+union_ a b = (!)(Union a b)
+record_ fields = (!)(Record fields)
+project_ body field = (!)(Project body field)
+foreach_ src x body = (!)(Comp x src body)

@@ -13,7 +13,7 @@ import Narc.Pretty
 import Narc.SQL
 import Narc.Type as Type
 import Narc.TypeInfer
-import Narc.Util (image, maps, alistmap, dom)
+import Narc.Util (image, maps, alistmap)
 
 -- -- Testing-related imports
 -- import Test.QuickCheck (Property, forAll, sized)
