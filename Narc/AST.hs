@@ -15,13 +15,13 @@ module Narc.AST (
   singleton_, nil_, union_, record_, project_, foreach_ 
 ) where
 
-import Data.List as List ((\\))
+import Data.List as List ((\\), nub)
 
 import Prelude hiding (abs)
 
 import Narc.Common
 import Narc.Type
-import Narc.Util (alistmap, u, union)
+import Narc.Util (alistmap, u)
 import Narc.Var
 
 -- | Terms in the nested relational calculus.
@@ -53,7 +53,7 @@ fvs (Unit, _) = []
 fvs (Bool _, _) = []
 fvs (Num _, _) = []
 fvs (String _, _) = []
-fvs (PrimApp prim args, _) = union $ map fvs args
+fvs (PrimApp prim args, _) = nub $ concat $ map fvs args
 fvs (Var x, _) = [x]
 fvs (Abs x n, _) = fvs n \\ [x]
 fvs (App l m, _) = fvs l `u` fvs m
@@ -62,7 +62,7 @@ fvs (If c a b, _) = fvs c `u` fvs a `u` fvs b
 fvs (Nil, _) = []
 fvs (Singleton elem, _) = fvs elem
 fvs (Union m n, _) = fvs m `u` fvs n
-fvs (Record fields, _) = union $ map (fvs . snd) fields
+fvs (Record fields, _) = nub $ concat $ map (fvs . snd) fields
 fvs (Project targ _, _) = fvs targ
 fvs (Comp x src body, _) = fvs src `u` (fvs body \\ [x])
 

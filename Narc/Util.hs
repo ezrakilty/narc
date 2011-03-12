@@ -62,8 +62,6 @@ setEq a b = (nub a) `bagEq` (nub b)
 
 u a b = nub (a ++ b)
 
-union lists = nub $ concat lists
-
 contains a b = null(b \\ a)
 
 setMinus xs ys = nub $ sort $ xs \\ ys

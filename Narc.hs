@@ -17,7 +17,7 @@ module Narc (-- * The type of the embedded terms
              fullyCompileGTerm,
              -- * The language itself
              unit, Const, primApp, abs, app, ifthenelse, singleton,
-             nil, record, project, foreach, having
+             nil, union, record, project, foreach, having
             )
     where
 

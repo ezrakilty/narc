@@ -4,7 +4,7 @@ import Data.List (nub, intercalate)
 
 import Narc.Common
 import Narc.Type
-import Narc.Util (u, union, mapstrcat)
+import Narc.Util (u, mapstrcat)
 
 --
 -- SQL Queries ---------------------------------------------------------
@@ -84,7 +84,7 @@ sizeQuery qy = loop 0 qy
 freevarsQuery (q@(Select _ _ _)) = 
     (freevarsQuery (rslt q))
     `u`
-    (union $ map freevarsQuery (cond q))
+    (nub $ concat $ map freevarsQuery (cond q))
 freevarsQuery (QOp lhs op rhs) = nub (freevarsQuery lhs ++ freevarsQuery rhs)
 freevarsQuery (QRecord fields) = concatMap (freevarsQuery . snd) fields
 freevarsQuery _ = []
