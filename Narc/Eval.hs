@@ -8,19 +8,19 @@ import Narc.Util (alistmap)
 -- Evaluation ----------------------------------------------------------
 --
 
--- { Value environments } ----------------------------------------------
+-- { Values and value environments } -----------------------------------
 
 bind x v env = (x,v):env
 
 -- type RuntimeTerm = Term (Maybe Query)
 
 type Env = [(Var, Value)]
-data Value' = VUnit | VBool Bool | VNum Integer
+
+data Value = VUnit | VBool Bool | VNum Integer
             | VList [Value]
             | VRecord [(String, Value)]
             | VAbs Var TypedTerm Env
         deriving (Eq, Show)
-type Value = (Value')
 
 fromValue :: Value -> TypedTerm
 fromValue VUnit = (Unit, undefined)
@@ -45,7 +45,8 @@ initialEnv =
 --        Just (QAbs "x" (QAbs "y" (QOp (QVar "x") Plus (QVar "y"))))))]
 
 -- | appPrim: apply a primitive function to a list of value arguments.
-appPrim "+" [(VNum a), (VNum b)] = VNum (a+b)
+appPrim :: String -> [Value] -> Value
+appPrim "+" [VNum a, VNum b] = VNum (a+b)
 appPrim p _ = error("Unknown primitive" ++ p)
 
 -- | eval: Evaluate a typed term in a closing environment. Captures the

@@ -1,15 +1,27 @@
-module Narc.AST where
+module Narc.AST (
+  Term'(..),
+  Term,
+  Var,
+  PlainTerm,
+  TypedTerm,
+  fvs,
+  substTerm,
+  strip,
+  retagulate,
+  rename,
+  variables
+) where
 
 import Data.List as List ((\\))
 
 import Narc.Common
 import Narc.Type
 import Narc.Util (alistmap, u, union)
-
-type Var = String
+import Narc.Var
 
 -- | Terms in the nested relational calculus.
-data Term' a = Unit | Bool Bool | Num Integer | String String | PrimApp String [Term a]
+data Term' a = Unit | Bool Bool | Num Integer | String String
+             | PrimApp String [Term a]
              | Var Var | Abs Var (Term a) | App (Term a) (Term a)
              | Table Tabname [(Field, Type)]
              | If (Term a) (Term a) (Term a)

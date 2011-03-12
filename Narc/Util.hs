@@ -82,12 +82,16 @@ disjointAlist xs ys = disjoint (map fst xs) (map fst ys)
 -- disjointAlist xs ((a,b):ys) =
 --     (not $ any ((== a) . fst) xs) && disjointAlist xs ys
 
+-- | Convert a maybe to a zero-or-one-element list.
+asList :: Maybe a -> [a]
 asList Nothing = []
 asList (Just x) = [x]
 
+isRight :: Either a b -> Bool
 isRight (Right _) = True
 isRight (Left _ ) = False
 
+isLeft :: Either a b -> Bool
 isLeft (Left _) = True
 isLeft (Right _ ) = False
 
