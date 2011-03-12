@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Narc.AST.Pretty where
 
 import Narc.AST
@@ -10,18 +12,22 @@ instance Pretty (Term' a) where
   pretty (Unit) = "()"
   pretty (Bool b) = show b
   pretty (Num n) = show n
-  pretty (PrimApp f args) = f ++ "("++mapstrcat "," (pretty.fst) args ++")"
+  pretty (PrimApp f args) = f ++ "(" ++ mapstrcat "," pretty args ++ ")"
   pretty (Var x) = x
-  pretty (Abs x n) = "(fun " ++ x ++ " -> " ++ (pretty.fst) n ++ ")"
-  pretty (App l m) = (pretty.fst) l ++ " " ++ (pretty.fst) m
-  pretty (Table tbl t) = "table " ++ tbl ++ " : " ++ show t
-  pretty (If c a b) = "(if " ++ (pretty.fst) c ++ " then " ++ (pretty.fst) a ++ 
-                      " else " ++ (pretty.fst) b ++ " )"
-  pretty (Singleton m) = "[" ++ (pretty.fst) m ++ "]" 
+  pretty (Abs x n) = "(fun " ++ x ++ " -> " ++ pretty n ++ ")"
+  pretty (App l m) = pretty l ++ " " ++ pretty m
+  pretty (Table tbl t) = "(table " ++ tbl ++ " : " ++ show t ++ ")"
+  pretty (If c a b) =
+      "(if " ++ pretty c ++ " then " ++ pretty a ++ 
+      " else " ++ pretty b ++ " )"
+  pretty (Singleton m) = "[" ++ pretty m ++ "]" 
   pretty (Nil) = "[]"
-  pretty (Union m n) = "("++(pretty.fst) n++" ++ "++(pretty.fst) n++")"
+  pretty (Union m n) = "(" ++ pretty n ++ " ++ " ++ pretty n ++ ")"
   pretty (Record fields) = 
-      "{" ++ mapstrcat "," (\(l,m) -> l ++ "=" ++(pretty.fst) m) fields++ "}"
-  pretty (Project m l) = "("++(pretty.fst) m++"."++l++")"
-  pretty (Comp x m n)= "for ("++x++" <- "++(pretty.fst) m++") " ++ (pretty.fst)n
+      "{" ++ mapstrcat "," (\(l,m) -> l ++ "=" ++ pretty m) fields ++ "}"
+  pretty (Project m l) = "(" ++ pretty m ++ "." ++ l ++ ")"
+  pretty (Comp x m n) =
+      "(for (" ++ x ++ " <- " ++ pretty m ++ ") " ++ pretty n ++ ")"
 
+instance Pretty (Term a) where
+  pretty (m, t) = pretty m

@@ -4,7 +4,7 @@
 -- | Query SQL databases using Nested Relational Calculus embedded in
 -- Haskell.
 -- 
--- The primed functions in this module are in fact the basic syntactic 
+-- The primed functions in this module are in fact the syntactic 
 -- forms of the embedded language. Use them as, for example:
 -- 
 -- >  foreach' (table' "employees" []) $ \emp ->
