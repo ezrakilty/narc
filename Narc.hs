@@ -7,9 +7,9 @@
 -- The primed functions in this module are in fact the syntactic 
 -- forms of the embedded language. Use them as, for example:
 -- 
--- >  foreach' (table' "employees" []) $ \emp ->
--- >    where' (primApp' "<" [cnst' 20000, project' emp "salary"]) $
--- >    singleton' (record' [(project' emp "name")])
+-- >  foreach (table "employees" []) $ \emp ->
+-- >    having (primApp "<" [cnst 20000, project emp "salary"]) $
+-- >    singleton (record [(project emp "name")])
 
 module Narc (-- * The type of the embedded terms
              GTerm,
@@ -17,7 +17,7 @@ module Narc (-- * The type of the embedded terms
              fullyCompileGTerm,
              -- * The language itself
              unit, Const, primApp, abs, app, ifthenelse, singleton,
-             nil, record, project, foreach
+             nil, record, project, foreach, having
             )
     where
 
