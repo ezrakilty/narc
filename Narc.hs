@@ -11,15 +11,15 @@
 -- >    having (primApp "<" [cnst 20000, project emp "salary"]) $
 -- >    singleton (record [(project emp "name")])
 
-module Narc (-- * The type of the embedded terms
-             GTerm,
-             -- * Translation to an SQL representation
-             fullyCompileGTerm,
-             -- * The language itself
-             unit, Const, primApp, abs, app, ifthenelse, singleton,
-             nil, union, record, project, foreach, having
-            )
-    where
+module Narc (
+  -- * The type of the embedded terms
+  GTerm,
+  -- * Translation to an SQL representation
+  fullyCompileGTerm,
+  -- * The language itself
+  unit, Const, primApp, abs, app, ifthenelse, singleton,
+  nil, union, record, project, foreach, having
+) where
 
 import Prelude hiding (abs, catch)
 import Control.Exception (catch, throwIO, evaluate, SomeException)
@@ -52,6 +52,8 @@ import Narc.SQL
 import Narc.Type as Type
 import Narc.TypeInfer
 import Narc.Util
+
+import Narc.HDBC
 
 -- THE AWESOME FULL COMPILATION FUNCTION -------------------------------
 
