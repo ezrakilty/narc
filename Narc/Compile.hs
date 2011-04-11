@@ -97,8 +97,8 @@ normTerm env (Project argTerm label, t) =
                               Just x -> x 
                               Nothing -> error $ "no field " ++ label
       -- Ah, the following not necessary because If pushes into records.
-      (If cond v1 v2,_) ->
-          normTerm env (If cond
+      (If condn v1 v2,_) ->
+          normTerm env (If condn
                         (Project v1 label, t)
                         (Project v2 label, t), t)
       v@(Var _x, _) -> (Project v label, t)
@@ -176,6 +176,7 @@ translateTerm x =
 -- classes (in the grammar of the normalized form) which they handle.
 -- (F for "for comprehension", Z for "final bit of a nest of
 -- comprehensions", and B for "base type"
+translateF :: Term b -> Query
 translateF (Comp x (Table tabname fTys, _) n, _) =
     let q@(Select _ _ _) = translateF n in
     Select {rslt = rslt q,
@@ -186,6 +187,7 @@ translateF (z@(Singleton (Record _, _), _))                     = translateZ z
 translateF (z@(Table _ _, _))                                   = translateZ z
 translateF m = error $ "translateF for unexpected term: " ++ pretty (fst m)
 
+translateZ :: Term b -> Query
 translateZ (If b z (Nil, _), _) =
     let q@(Select _ _ _) = translateZ z in
     Select {rslt=rslt q, tabs = tabs q, cond = translateB b : cond q}
@@ -196,6 +198,7 @@ translateZ (Table tabname fTys, _) =
             tabs = [(tabname, tabname, TRecord fTys)], cond = []}
 translateZ z = error$ "translateZ got unexpected term: " ++ (pretty.fst) z
 
+translateB :: Term b -> Query
 translateB (If b b' b'', _)            = QIf (translateB b)
                                            (translateB b') (translateB b'') 
 translateB (Bool n, _)                 = (QBool n)
