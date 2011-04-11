@@ -124,7 +124,9 @@ serialize :: Query -> String
 serialize q@(Select _ _ _) =
     "select " ++ serializeRow (rslt q) ++
     " from " ++ mapstrcat ", " (\(a, b, _) -> a ++ " as " ++ b) (tabs q) ++
-    " where " ++ mapstrcat " and " serializeAtom (cond q)
+    " where " ++ if null (cond q) then
+                     "true"
+                 else mapstrcat " and " serializeAtom (cond q)
 serialize (QUnion l r) =
     "(" ++ serialize l ++ ") union (" ++ serialize r ++ ")"
 
