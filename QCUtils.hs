@@ -63,9 +63,9 @@ arbWordChar = frequency [(1, elements $ ['a'..'z'] ++ ['A'..'Z']),
 
 arbStringLen :: Gen Char -> Int -> Gen String
 arbStringLen charGen 0 = return ""
-arbStringLen charGen (n+1) = do str <- arbStringLen charGen n
-                                ch <- charGen
-                                return $ ch : str
+arbStringLen charGen n = do str <- arbStringLen charGen (n-1)
+                            ch <- charGen
+                            return $ ch : str
 
 -- | arbString: Generate a string of some length between 0 and 6, each length 
 -- with equal probability
