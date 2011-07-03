@@ -96,17 +96,21 @@ whens p e = if p then e else []
 
 small = stdArgs
 
-big = Args {maxSuccess = 1000,
-            maxDiscard = 1000,
-            maxSize = 12,
-            replay = Nothing
-           }
+big = Args {
+    maxSuccess = 1000,
+    maxDiscard = 1000,
+    maxSize = 12,
+    replay = Nothing,
+    chatty = False
+  }
 
-huge = Args {maxSuccess = 10000,
-             maxDiscard =  5000,
-             maxSize = 20,
-             replay = Nothing
-            }
+huge = Args {
+    maxSuccess = 10000,
+    maxDiscard =  5000,
+    maxSize = 20,
+    replay = Nothing,
+    chatty = False
+  }
 
 {- General list functions -}
 
@@ -147,7 +151,8 @@ tinyArgs = Args {
     maxSuccess = 100,
     maxDiscard = 100,
     maxSize = 8,
-    replay = Nothing
+    replay = Nothing,
+    chatty = False
   }
 
 verySmallArgs :: Args
@@ -155,7 +160,8 @@ verySmallArgs = Args {
     maxSuccess = 1000,
     maxDiscard = 1000,
     maxSize = 12,
-    replay = Nothing
+    replay = Nothing,
+    chatty = False
   }
 
 smallArgs :: Args
@@ -163,7 +169,8 @@ smallArgs = Args {
     maxSuccess = 10000,
     maxDiscard = 10000,
     maxSize = 16,
-    replay = Nothing
+    replay = Nothing,
+    chatty = False
   }
 
 mediumArgs :: Args
@@ -171,7 +178,8 @@ mediumArgs = Args {
     maxSuccess = 100,
     maxDiscard = 100,
     maxSize = 100,
-    replay = Nothing
+    replay = Nothing,
+    chatty = False
   }
 
 bigArgs :: Args
@@ -179,5 +187,6 @@ bigArgs = Args {
     maxSuccess = 1000,
     maxDiscard = 1000,
     maxSize = 500,
-    replay = Nothing
+    replay = Nothing,
+    chatty = False
   }

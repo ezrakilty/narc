@@ -13,9 +13,9 @@
 
 module Narc (
   -- * The type of the embedded terms
-  GTerm,
+  NarcTerm,
   -- * Translation to an SQL representation
-  fullyCompileGTerm,
+  narcTermToSQL,
   -- * The language itself
   unit, Const, primApp, abs, app, ifthenelse, singleton,
   nil, union, record, project, foreach, having
@@ -48,7 +48,7 @@ import Narc.Failure
 import Narc.Pretty
 import Narc.AST.Pretty
 import Narc.SQL.Pretty
-import Narc.SQL
+import qualified Narc.SQL as SQL
 import Narc.Type as Type
 import Narc.TypeInfer
 import Narc.Util
@@ -57,10 +57,10 @@ import Narc.HDBC
 
 -- THE AWESOME FULL COMPILATION FUNCTION -------------------------------
 
-fullyCompile :: Term a -> Query
-fullyCompile = compile [] . runTyCheck []
+typeCheckAndCompile :: Term a -> SQL.Query
+typeCheckAndCompile = compile [] . runTyCheck []
 
--- Builders ------------------------------------------------------------
+-- The Narc embedded langauge-------------------------------------------
 
 -- Example query
 
@@ -69,32 +69,40 @@ example_dull = (Comp "x" (Table "foo" [("a", TBool)], ())
                  (Singleton (Var "x", ()), ())
                  (Nil, ()), ()), ())
 
--- HOAS-ish builders
+-- HOAS-ish embedded language.
 
-type GTerm = Gensym (Term ()) -- Bleck. Rename.
+type NarcTerm = Gensym (Term ()) -- ^ Bleck. Rename.
 
-realize :: GTerm -> Term ()
+-- | Translate a Narc term to an SQL query string--perhaps the central
+-- | function of the interface.
+narcTermToSQLString :: NarcTerm -> String
+narcTermToSQLString = SQL.serialize . narcTermToSQL
+
+-- | Translate a Narc term to an SQL query.
+narcTermToSQL :: NarcTerm -> SQL.Query
+narcTermToSQL = typeCheckAndCompile . realize
+
+-- | Turn a HOAS representation of a Narc term into a concrete,
+-- | named-binder representation.
+realize :: NarcTerm -> Term ()
 realize = runGensym
 
-fullyCompileGTerm :: GTerm -> Query
-fullyCompileGTerm = fullyCompile . realize
-
 -- | A dummy value, or zero-width record.
-unit :: GTerm
+unit :: NarcTerm
 unit = return $ (!) Unit
 
 -- | A polymorphic way of embedding constants into a term.
-class Const' a where cnst' :: a -> GTerm
+class Const' a where cnst' :: a -> NarcTerm
 instance Const' Bool where cnst' b = return ((!)(Bool b))
 instance Const' Integer where cnst' n = return ((!)(Num n))
 
 -- | Apply some primitive function, such as @(+)@ or @avg@, to a list
 -- of arguments.
-primApp :: String -> [GTerm] -> GTerm
+primApp :: String -> [NarcTerm] -> NarcTerm
 primApp f args =  (!) . PrimApp f <$> sequence args
 
 -- | Create a functional abstraction.
-abs :: (String -> GTerm) -> GTerm
+abs :: (String -> NarcTerm) -> NarcTerm
 abs fn = do
   n <- gensym
   let x = '_' : show n
@@ -102,29 +110,29 @@ abs fn = do
   return $ (!) $ Abs x body
 
 -- | Apply a functional term to an argument.
-app :: GTerm -> GTerm -> GTerm
+app :: NarcTerm -> NarcTerm -> NarcTerm
 app l m = (!) <$> (App <$> l <*> m)
 
 -- | A reference to a named database table; second argument is its
 -- schema type.
-table :: Tabname -> [(Field, Type)] -> GTerm
+table :: Tabname -> [(Field, Type)] -> NarcTerm
 table tbl ty = return $ (!) $ Table tbl ty
 
 -- | A condition between two terms, as determined by the boolean value
 -- of the first term.
-ifthenelse :: GTerm -> GTerm -> GTerm -> GTerm
+ifthenelse :: NarcTerm -> NarcTerm -> NarcTerm -> NarcTerm
 ifthenelse c t f = (!) <$> (If <$> c <*> t <*> f)
 
 -- | A singleton collection of one item.
-singleton :: GTerm -> GTerm
+singleton :: NarcTerm -> NarcTerm
 singleton x = (!) . Singleton <$> x
 
 -- | An empty collection.
-nil :: GTerm
+nil :: NarcTerm
 nil = return $ (!) $ Nil
 
 -- | The union of two collections
-union :: GTerm -> GTerm -> GTerm
+union :: NarcTerm -> NarcTerm -> NarcTerm
 union l r = (!) <$> (Union <$> l <*> r)
 
 -- | Construct a record (name-value pairs) out of other terms; usually
@@ -132,18 +140,18 @@ union l r = (!) <$> (Union <$> l <*> r)
 -- result of a query, corresponding to the @select@ clause of a SQL
 -- query, but can also be used with nested results internally in a
 -- query.
-record :: [(String, GTerm)] -> GTerm
+record :: [(String, NarcTerm)] -> NarcTerm
 record fields = (!) <$> (Record <$> sequence [do expr' <- expr ; return (lbl, expr') | (lbl, expr) <- fields])
 
 -- | Project a field out of a record value.
-project :: GTerm -> String -> GTerm
+project :: NarcTerm -> String -> NarcTerm
 project expr field = (!) <$> (Project <$> expr <*> return field)
 
 -- | For each item in the collection resulting from the first
 -- argument, give it to the function which is the second argument
 -- and evaluate--this corresponds to a loop, or two one part of a
 -- cross in traditional SQL queries.
-foreach :: GTerm -> (GTerm -> GTerm) -> GTerm
+foreach :: NarcTerm -> (NarcTerm -> NarcTerm) -> NarcTerm
 foreach src k = do
   src' <- src
   n <- gensym
@@ -153,7 +161,7 @@ foreach src k = do
 
 -- | Filter the current iteration as per the condition in the first
 -- argument. Corresponds to a @where@ clause in a SQL query.
-having :: GTerm -> GTerm -> GTerm
+having :: NarcTerm -> NarcTerm -> NarcTerm
 having cond body = ifthenelse cond body nil
 
 -- Example query
@@ -181,12 +189,12 @@ example3' =
 
 test_example =
     TestList [
-        serialize (fullyCompile (realize example'))
+        SQL.serialize (typeCheckAndCompile (realize example'))
         ~?= "select _0.a as a from foo as _0 where _0.a"
         ,
-        serialize (fullyCompile (realize example2'))
+        SQL.serialize (typeCheckAndCompile (realize example2'))
         ~?= "(select _0.a as a from foo as _0, bar as _1 where _0.a < _1.a) union (select _1.a as a from foo as _0, bar as _1 where not(_0.a < _1.a))"
         ,
-        serialize (fullyCompile (realize example3'))
+        SQL.serialize (typeCheckAndCompile (realize example3'))
         ~?= "select _0.name as nom from employees as _0 where 20000 < _0.salary"
     ]

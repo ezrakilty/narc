@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module Narc.AST (
   Term'(..),
   Term,
@@ -24,7 +26,8 @@ import Narc.Type
 import Narc.Util (alistmap, u)
 import Narc.Var
 
--- | Terms in the nested relational calculus.
+-- | Terms in the nested relational calculus (represented concretely
+-- | with named variables)
 data Term' a = Unit | Bool Bool | Num Integer | String String
              | PrimApp String [Term a]
              | Var Var | Abs Var (Term a) | App (Term a) (Term a)
@@ -229,9 +232,53 @@ numComps (Table _ _, _) = 0
 numComps (If c a b, _) = numComps c + numComps a + numComps b
 numComps (Nil, _) = 0
 
+-- | An interface for semanticizing the Narc concrete language as
+-- | desired (as per "Unembedding domain specific languages" by Atkey,
+-- | Lindley and Yallop).
+class NarcSem result where
+    unit :: result
+    bool :: Bool -> result
+    num :: Integer -> result
+    string :: String -> result
+    primApp :: String -> [result] -> result
+    var :: Var -> result
+    abs :: Var -> result -> result
+    app :: result -> result -> result
+    table :: Tabname -> [(Field, Type)] -> result
+    ifthenelse :: result -> result -> result -> result
+    singleton :: result -> result
+    nil :: result
+    union :: result -> result -> result
+    record :: [(String, result)] -> result
+    project :: result -> String -> result
+    foreach :: result -> Var -> result -> result
+--    cnst :: Constable t => t -> result
+class Constable t where cnst :: NarcSem result => t -> result
+instance Constable Bool where cnst b = bool b
+instance Constable Integer where cnst n = num n
+
 -- Explicit-named builders
 
 (!) x = (x, ())
+
+instance NarcSem (Term'(),()) where
+  unit = (!)Unit
+  bool b = (!)(Bool b)
+  num n = (!)(Num n)
+  string n = (!)(String n)
+  primApp f args = (!)(PrimApp f args)
+  var x = (!)(Var x)
+  abs x body = (!)(Abs x body)
+  app l m = (!)(App l m)
+  table tbl ty = (!)(Table tbl ty)
+  ifthenelse c t f = (!)(If c t f)
+  singleton x = (!)(Singleton x)
+  nil = (!)Nil
+  union a b = (!)(Union a b)
+  record fields = (!)(Record fields)
+  project body field = (!)(Project body field)
+  foreach src x body = (!)(Comp x src body)
+-- class Const a where cnst_ :: a -> Term ()
 
 unit_ = (!)Unit
 class Const a where cnst_ :: a -> Term ()

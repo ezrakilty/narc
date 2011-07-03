@@ -30,7 +30,7 @@ etaExpand expr fieldTys =
              | (field, fTy) <- fieldTys], 
      exprTy)
 
--- | Normalize DB terms on a CBV evaluation strategy. 
+-- | Normalize DB terms in a nearly call-by-value way.
 normTerm :: [(String, QType)] -- ^ An environment, typing all free vars.
          -> TypedTerm         -- ^ The term to normalize.
          -> TypedTerm
@@ -160,7 +160,7 @@ insertFurther k ((v,t) :: TypedTerm) =
 minFreeFor :: Term a -> Var
 minFreeFor n = head $ variables \\ fvs n 
 
--- | translateTerm homomorphically translates a normal-form Term to an
+-- | @translateTerm@ homomorphically translates a normal-form Term to an
 -- | SQL Query.
 translateTerm :: TypedTerm -> Query
 translateTerm (v `Union` u, _) = (translateTerm v) `QUnion` (translateTerm u)
