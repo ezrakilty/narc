@@ -48,13 +48,13 @@ Cabal-version:       >=1.2
 
 Library
   -- Modules exported by the library.
-  Exposed-modules:     Gensym, Narc, QCUtils, Narc.AST, Narc.Common, Narc.Compile, Narc.Contract, Narc.Debug, Narc.Eval, Narc.Failure, Narc.Pretty, Narc.Rewrite, Narc.SQL, Narc.Test, Narc.Type, Narc.TypeInfer, Narc.Util, Narc.AST.Pretty, Narc.Failure.QuickCheck, Narc.SQL.Pretty
+  Exposed-modules:     Narc, Narc.AST, Narc.Common, Narc.Compile, Narc.Eval, Narc.Failure, Narc.Pretty, Narc.Rewrite, Narc.SQL, Narc.Test, Narc.Type, Narc.TypeInfer, Narc.Util, Narc.AST.Pretty, Narc.Failure.QuickCheck, Narc.SQL.Pretty
   
   -- Packages needed in order to build this package.
   Build-depends: base >=4, HUnit, QuickCheck, mtl, random
   
   -- Modules not exported by this package.
-  -- Other-modules:       
+  Other-modules:       Gensym, QCUtils, Narc.TermGen, Narc.Var, Narc.Contract, Narc.Debug
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
