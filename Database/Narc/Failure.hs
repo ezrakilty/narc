@@ -1,8 +1,8 @@
-module Narc.Failure where
+module Database.Narc.Failure where
 
-import Narc.Debug
 import Control.Monad.Error hiding (when, join)
 import Gensym
+import Database.Narc.Debug
 
 -- Failure and ErrorGensym monads --------------------------------------
 -- (TBD: this is more general than Narc; factor it out.)

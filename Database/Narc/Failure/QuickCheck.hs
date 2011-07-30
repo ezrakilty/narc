@@ -1,9 +1,9 @@
-module Narc.Failure.QuickCheck where
+module Database.Narc.Failure.QuickCheck where
 
 import Test.QuickCheck
 
 import QCUtils
-import Narc.Failure
+import Database.Narc.Failure
 
 -- QuickCheck property utilities ---------------------------------------
 

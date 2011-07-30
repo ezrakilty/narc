@@ -1,4 +1,4 @@
-module Narc.Common where
+module Database.Narc.Common where
 
 type Tabname = String
 

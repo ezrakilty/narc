@@ -1,4 +1,4 @@
-module Narc.TypeInfer where
+module Database.Narc.TypeInfer where
 
 import Data.Maybe (fromMaybe)
 import Data.Either
@@ -8,10 +8,10 @@ import Control.Monad.State (lift)
 import Test.HUnit
 
 import Gensym
-import Narc.AST
-import Narc.Type
-import Narc.Failure
-import Narc.Debug (debug)
+import Database.Narc.AST
+import Database.Narc.Type
+import Database.Narc.Failure
+import Database.Narc.Debug (debug)
 
 --
 -- Type inference ------------------------------------------------------

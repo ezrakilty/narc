@@ -1,6 +1,6 @@
-module Narc.Pretty where
+module Database.Narc.Pretty where
 
-import Narc.Common
+import Database.Narc.Common
 
 -- Pretty-printing ------------------------------------------------=====
 

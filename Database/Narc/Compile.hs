@@ -1,25 +1,25 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Narc.Compile (compile) where
+module Database.Narc.Compile (compile) where
 
 import Data.List ((\\))
 
-import Narc.AST
-import Narc.AST.Pretty ()
-import Narc.Contract
-import Narc.Debug (forceAndReport)
-import Narc.Pretty
-import Narc.SQL
-import Narc.Type as Type
-import Narc.TypeInfer
-import Narc.Util (image, maps, alistmap)
+import Database.Narc.AST
+import Database.Narc.AST.Pretty ()
+import Database.Narc.Contract
+import Database.Narc.Debug (forceAndReport)
+import Database.Narc.Pretty
+import Database.Narc.SQL as SQL
+import Database.Narc.Type as Type
+import Database.Narc.TypeInfer
+import Database.Narc.Util (image, maps, alistmap)
 
 -- -- Testing-related imports
 -- import Test.QuickCheck (Property, forAll, sized)
--- import Narc.TermGen
--- import Narc.Eval
--- import Narc.Failure
+-- import Database.Narc.TermGen
+-- import Database.Narc.Eval
+-- import Database.Narc.Failure
 
 -- { Compilation } -----------------------------------------------------
 
@@ -164,7 +164,7 @@ minFreeFor n = head $ variables \\ fvs n
 -- | SQL Query.
 translateTerm :: TypedTerm -> Query
 translateTerm (v `Union` u, _) = (translateTerm v) `QUnion` (translateTerm u)
-translateTerm (Nil, _)         = Narc.SQL.emptyQuery
+translateTerm (Nil, _)         = SQL.emptyQuery
 translateTerm (f@(Comp _ (Table _ _, _) _, _))                  = translateF f
 translateTerm (f@(If _ _ (Nil, _), _))                          = translateF f
 translateTerm (f@(Singleton (Record _, _), _))                  = translateF f
@@ -215,8 +215,8 @@ compile env = translateTerm . normTerm env
 
 -- -- FIXME: where does this belong? It tests a function internal to this
 -- -- module (normTerm) but uses testing apparatus that is defined at a
--- -- "higher" layer (Narc.Test) and uses an otherwise unrelated module
--- -- (Narc.Eval).
+-- -- "higher" layer (Database.Narc.Test) and uses an otherwise unrelated module
+-- -- (Database.Narc.Eval).
 -- prop_norm_sound :: TyEnv -> Env -> Property
 -- prop_norm_sound tyEnv env =
 --   forAll (sized (typeGen [])) $ \t ->

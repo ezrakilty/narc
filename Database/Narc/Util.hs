@@ -1,4 +1,4 @@
-module Narc.Util where
+module Database.Narc.Util where
 
 import Data.Maybe (fromJust, isJust)
 import Data.List as List ((\\), nub, intersperse, groupBy, sortBy, sort)

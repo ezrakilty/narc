@@ -1,10 +1,10 @@
-module Narc.Rewrite where
+module Database.Narc.Rewrite where
 
 import Data.Maybe (fromMaybe)
 
-import Narc.AST
-import Narc.Type
-import Narc.Util (alistmap)
+import Database.Narc.AST
+import Database.Narc.Type
+import Database.Narc.Util (alistmap)
 
 -- Rewrite -------------------------------------------------------------
 --

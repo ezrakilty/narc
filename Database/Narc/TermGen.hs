@@ -1,4 +1,4 @@
-module Narc.TermGen where
+module Database.Narc.TermGen where
 
 import Control.Monad hiding (when)
 
@@ -7,10 +7,10 @@ import Test.QuickCheck hiding (promote, Failure)
 import Gensym
 import QCUtils
 
-import Narc.AST
-import Narc.SQL
-import Narc.Type as Type
-import Narc.Util
+import Database.Narc.AST
+import qualified Database.Narc.SQL as SQL
+import Database.Narc.Type as Type
+import Database.Narc.Util
 
 --
 -- QuickCheck term generators ------------------------------------------
@@ -172,8 +172,8 @@ dbTableTypeGen =
 
 -- Generators
 
-instance Arbitrary Op where
-    arbitrary = oneof [return Eq, return Less]
+instance Arbitrary SQL.Op where
+    arbitrary = oneof [return SQL.Eq, return SQL.Less]
 
 listGen :: Int -> Gen a -> Gen [a]
 listGen 0 gen = oneof [ return [], do x <- gen

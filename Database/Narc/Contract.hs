@@ -1,4 +1,4 @@
-module Narc.Contract where
+module Database.Narc.Contract where
 
 -- Contractual assertions ----------------------------------------------
 

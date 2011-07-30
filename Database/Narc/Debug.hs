@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Narc.Debug where
+module Database.Narc.Debug where
 
 import Prelude hiding (catch)
 import Control.Exception (catch, evaluate, throwIO, SomeException)

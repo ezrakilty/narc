@@ -1,8 +1,8 @@
-module Narc.Eval where
+module Database.Narc.Eval where
 
-import Narc.AST
-import Narc.Debug (debug)
-import Narc.Util (alistmap)
+import Database.Narc.AST
+import Database.Narc.Debug (debug)
+import Database.Narc.Util (alistmap)
 
 --
 -- Evaluation ----------------------------------------------------------

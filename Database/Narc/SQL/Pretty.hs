@@ -1,8 +1,8 @@
-module Narc.SQL.Pretty where
+module Database.Narc.SQL.Pretty where
 
-import Narc.Pretty
-import Narc.SQL
-import Narc.Util (mapstrcat)
+import Database.Narc.Pretty
+import Database.Narc.SQL
+import Database.Narc.Util (mapstrcat)
 
 instance Pretty Query where
   pretty (Select{rslt=QRecord flds, tabs=tabs, cond=cond}) = 

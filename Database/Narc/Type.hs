@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Narc.Type where
+module Database.Narc.Type where
 
 import Test.QuickCheck
 
@@ -10,11 +10,11 @@ import QCUtils
 import Data.List ((\\))
 import Control.Monad.State (State(..), get, put, evalState) -- TBD: use Gensym monad instead
 import Control.Applicative ((<$>))
-import Narc.Failure (Failure, fayl)
-import Narc.Failure.QuickCheck
-import Narc.Util (dom, rng, image, alistmap, sortAlist, onCorresponding,
+import Database.Narc.Failure (Failure, fayl)
+import Database.Narc.Failure.QuickCheck
+import Database.Narc.Util (dom, rng, image, alistmap, sortAlist, onCorresponding,
                      disjointAlist, validEnv, eqUpTo)
-import Narc.Var
+import Database.Narc.Var
 
 type TyVar = Int
 

@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
 
-module Narc.Test where
+module Database.Narc.Test where
 
 import Prelude hiding (catch)
 import Control.Monad.State hiding (when, join)
@@ -12,13 +12,13 @@ import Test.HUnit hiding (State, assert)
 import Gensym
 import QCUtils
 
-import Narc.AST
-import Narc.Compile
-import Narc.Failure
-import Narc.SQL
-import Narc.Type as Type
-import Narc.TypeInfer
-import Narc.TermGen
+import Database.Narc.AST
+import Database.Narc.Compile
+import Database.Narc.Failure
+import qualified Database.Narc.SQL as SQL
+import Database.Narc.Type as Type
+import Database.Narc.TypeInfer
+import Database.Narc.TermGen
 
 makeNormalizerTests :: ErrorGensym Test
 makeNormalizerTests = 
@@ -34,7 +34,7 @@ makeNormalizerTests =
                                            [("f0", (Num 3, ()))], ()), ()), 
                                ()), ()) in
                   let tyTerm = runErrorGensym $ infer $ term in
-                  groundQuery $ compile initialTyEnv $ tyTerm
+                  SQL.groundQuery $ compile initialTyEnv $ tyTerm
                  ]
 
 unitTests :: ErrorGensym Test
@@ -59,11 +59,11 @@ prop_eval_safe =
       Right (m'@(_, ty)) -> 
           isDBTableTy ty ==>
             let q = (compile [] $! m') in
-            collect (sizeQuery q) $  -- NB: Counts sizes only up to ~100.
-                    excAsFalse (q == q) -- Self-comparison forces the
-                                        -- value (?) thus surfacing
-                                        -- any @error@s that might be
-                                        -- raised.
+            collect (SQL.sizeQuery q) $  -- NB: Counts sizes only up to ~100.
+                    excAsFalse (q == q)  -- Self-comparison forces the
+                                         -- value (?) thus surfacing
+                                         -- any @error@s that might be
+                                         -- raised.
 
 prop_typedTermGen_tyCheck :: Property
 prop_typedTermGen_tyCheck =

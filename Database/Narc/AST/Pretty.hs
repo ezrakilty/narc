@@ -1,10 +1,10 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Narc.AST.Pretty where
+module Database.Narc.AST.Pretty where
 
-import Narc.AST
-import Narc.Pretty
-import Narc.Util (mapstrcat)
+import Database.Narc.AST
+import Database.Narc.Pretty
+import Database.Narc.Util (mapstrcat)
 
 -- Pretty-printing ------------------------------------------------=====
 

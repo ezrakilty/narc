@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module Narc.AST (
+module Database.Narc.AST (
   Term'(..),
   Term,
   Var,
@@ -21,10 +21,10 @@ import Data.List as List ((\\), nub)
 
 import Prelude hiding (abs)
 
-import Narc.Common
-import Narc.Type
-import Narc.Util (alistmap, u)
-import Narc.Var
+import Database.Narc.Common
+import Database.Narc.Type
+import Database.Narc.Util (alistmap, u)
+import Database.Narc.Var
 
 -- | Terms in the nested relational calculus (represented concretely
 -- | with named variables)

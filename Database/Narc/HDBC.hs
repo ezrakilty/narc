@@ -1,11 +1,11 @@
-module Narc.HDBC where
+module Database.Narc.HDBC where
 
 import Database.HDBC
 
-import Narc.AST
-import Narc.SQL
-import Narc.Compile
-import Narc.TypeInfer
+import Database.Narc.AST
+import Database.Narc.SQL
+import Database.Narc.Compile
+import Database.Narc.TypeInfer
 
 run :: IConnection conn => Term a -> conn -> IO [[SqlValue]]
 run t conn =

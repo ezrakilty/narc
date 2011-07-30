@@ -11,7 +11,7 @@
 -- >    having (primApp "<" [cnst 20000, project emp "salary"]) $
 -- >    singleton (record [(project emp "name")])
 
-module Narc (
+module Database.Narc (
   -- * The type of the embedded terms
   NarcTerm,
   -- * Translation to an SQL representation
@@ -39,21 +39,21 @@ import Debug.Trace
 
 import Gensym
 
-import Narc.AST
-import Narc.Common
-import Narc.Compile
-import Narc.Debug
-import Narc.Eval
-import Narc.Failure
-import Narc.Pretty
-import Narc.AST.Pretty
-import Narc.SQL.Pretty
-import qualified Narc.SQL as SQL
-import Narc.Type as Type
-import Narc.TypeInfer
-import Narc.Util
+import Database.Narc.AST
+import Database.Narc.Common
+import Database.Narc.Compile
+import Database.Narc.Debug
+import Database.Narc.Eval
+import Database.Narc.Failure
+import Database.Narc.Pretty
+import Database.Narc.AST.Pretty
+import Database.Narc.SQL.Pretty
+import qualified Database.Narc.SQL as SQL
+import Database.Narc.Type as Type
+import Database.Narc.TypeInfer
+import Database.Narc.Util
 
-import Narc.HDBC
+import Database.Narc.HDBC
 
 -- THE AWESOME FULL COMPILATION FUNCTION -------------------------------
 

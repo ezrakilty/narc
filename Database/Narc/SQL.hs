@@ -1,10 +1,10 @@
-module Narc.SQL where
+module Database.Narc.SQL where
 
 import Data.List (nub, intercalate)
 
-import Narc.Common
-import Narc.Type
-import Narc.Util (u, mapstrcat)
+import Database.Narc.Common
+import Database.Narc.Type
+import Database.Narc.Util (u, mapstrcat)
 
 --
 -- SQL Queries ---------------------------------------------------------
