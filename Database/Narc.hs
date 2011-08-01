@@ -72,7 +72,7 @@ example_dull = (Comp "x" (Table "foo" [("a", TBool)], ())
 
 -- HOAS-ish embedded language.
 
-type NarcTerm = Gensym (Term ()) -- ^ Bleck. Rename.
+type NarcTerm = Gensym (Term ())
 
 -- | Translate a Narc term to an SQL query string--perhaps the central
 -- | function of the interface.

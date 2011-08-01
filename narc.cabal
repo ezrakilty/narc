@@ -13,7 +13,22 @@ Version:             0.1.1
 Synopsis:            Query SQL databases using Nested Relational Calculus embedded in Haskell.
 
 -- A longer description of the package.
--- Description:         
+Description:         Narc is an embedded language for querying SQL databases, 
+		     which permits using the "nested relational" model, a more
+		     flexible model than the traditional relational model of SQL
+		     databases. In spite of this richer data model, queries are
+		     transformed into SQL to run against standard databases.
+		     .
+		     To use the language, express a query using the combinators
+		     like @foreach@, @table@, @having@, @singleton@ and so on.
+		     Wrap this in a call to narcToSQLString to get a string that
+		     can be sent to a SQL database.
+		     .
+		     To send a query directly to an HDBC connection, import
+		     the module @Database.Narc.HDBC@ and use its @run@ function,
+		     passing it an HDBC connection and a Narc query. The result
+		     is an IO action that returns a 2-D list of result values
+		     in HDBC's usual format.
 
 -- URL for the project homepage or repository.
 Homepage:            http://ezrakilty.net/projects/narc
