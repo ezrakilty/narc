@@ -17,7 +17,7 @@ module Database.Narc (
   -- * Translation to an SQL representation
   narcToSQL, narcToSQLString,
   -- * The language itself
-  unit, table, cnst, primApp, abs, app, ifthenelse, singleton,
+  unit, table, cnst, Constable, primApp, abs, app, ifthenelse, singleton,
   nil, union, record, project, foreach, having,
   Type(..)
 ) where
@@ -93,9 +93,11 @@ unit :: NarcTerm
 unit = return $ (!) Unit
 
 -- | A polymorphic way of embedding constants into a term.
-class Const' a where cnst :: a -> NarcTerm
-instance Const' Bool where cnst b = return ((!)(Bool b))
-instance Const' Integer where cnst n = return ((!)(Num n))
+class Constable a where
+    -- | Lift a constant value into a query.
+    cnst :: a -> NarcTerm
+instance Constable Bool where cnst b = return ((!)(Bool b))
+instance Constable Integer where cnst n = return ((!)(Num n))
 
 -- | Apply some primitive function, such as @(+)@ or @avg@, to a list
 -- of arguments.
