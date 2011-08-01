@@ -21,8 +21,8 @@ Description:         Narc is an embedded language for querying SQL databases,
 		     .
 		     To use the language, express a query using the combinators
 		     like @foreach@, @table@, @having@, @singleton@ and so on.
-		     Wrap this in a call to narcToSQLString to get a string that
-		     can be sent to a SQL database.
+		     Wrap this in a call to @narcToSQLString@ to get a string
+		     that can be sent to a SQL database.
 		     .
 		     To send a query directly to an HDBC connection, import
 		     the module @Database.Narc.HDBC@ and use its @run@ function,
@@ -63,13 +63,13 @@ Cabal-version:       >=1.2
 
 Library
   -- Modules exported by the library.
-  Exposed-modules:     Database.Narc, Database.Narc.SQL, Database.Narc.Test, Database.Narc.Type, Database.Narc.SQL.Pretty
+  Exposed-modules:     Database.Narc, Database.Narc.SQL, Database.Narc.Test, Database.Narc.Type, Database.Narc.HDBC
   
   -- Packages needed in order to build this package.
-  Build-depends: base >=4, HUnit, QuickCheck, mtl, random, HDBC
+  Build-depends: base >=4 && < 4, HUnit, QuickCheck, mtl, random, HDBC
   
   -- Modules not exported by this package.
-  Other-modules:       Gensym, QCUtils, Database.Narc.TermGen, Database.Narc.Var, Database.Narc.Contract, Database.Narc.Debug, Database.Narc.TypeInfer, Database.Narc.Util, Database.Narc.AST.Pretty, Database.Narc.Failure.QuickCheck, Database.Narc.Rewrite, Database.Narc.AST, Database.Narc.Common, Database.Narc.Compile, Database.Narc.Eval, Database.Narc.Failure, Database.Narc.Pretty
+  Other-modules:       Gensym, QCUtils, Database.Narc.TermGen, Database.Narc.Var, Database.Narc.Contract, Database.Narc.Debug, Database.Narc.TypeInfer, Database.Narc.Util, Database.Narc.AST.Pretty, Database.Narc.Failure.QuickCheck, Database.Narc.Rewrite, Database.Narc.AST, Database.Narc.Common, Database.Narc.Compile, Database.Narc.Eval, Database.Narc.Failure, Database.Narc.Pretty, Database.Narc.SQL.Pretty
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
