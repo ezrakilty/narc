@@ -15,10 +15,11 @@ module Database.Narc (
   -- * The type of the embedded terms
   NarcTerm,
   -- * Translation to an SQL representation
-  narcTermToSQL,
+  narcToSQL, narcToSQLString,
   -- * The language itself
-  unit, Const, primApp, abs, app, ifthenelse, singleton,
-  nil, union, record, project, foreach, having
+  unit, table, cnst, primApp, abs, app, ifthenelse, singleton,
+  nil, union, record, project, foreach, having,
+  Type(..)
 ) where
 
 import Prelude hiding (abs, catch)
@@ -75,12 +76,12 @@ type NarcTerm = Gensym (Term ()) -- ^ Bleck. Rename.
 
 -- | Translate a Narc term to an SQL query string--perhaps the central
 -- | function of the interface.
-narcTermToSQLString :: NarcTerm -> String
-narcTermToSQLString = SQL.serialize . narcTermToSQL
+narcToSQLString :: NarcTerm -> String
+narcToSQLString = SQL.serialize . narcToSQL
 
 -- | Translate a Narc term to an SQL query.
-narcTermToSQL :: NarcTerm -> SQL.Query
-narcTermToSQL = typeCheckAndCompile . realize
+narcToSQL :: NarcTerm -> SQL.Query
+narcToSQL = typeCheckAndCompile . realize
 
 -- | Turn a HOAS representation of a Narc term into a concrete,
 -- | named-binder representation.
@@ -92,9 +93,9 @@ unit :: NarcTerm
 unit = return $ (!) Unit
 
 -- | A polymorphic way of embedding constants into a term.
-class Const' a where cnst' :: a -> NarcTerm
-instance Const' Bool where cnst' b = return ((!)(Bool b))
-instance Const' Integer where cnst' n = return ((!)(Num n))
+class Const' a where cnst :: a -> NarcTerm
+instance Const' Bool where cnst b = return ((!)(Bool b))
+instance Const' Integer where cnst n = return ((!)(Num n))
 
 -- | Apply some primitive function, such as @(+)@ or @avg@, to a list
 -- of arguments.
@@ -163,38 +164,3 @@ foreach src k = do
 -- argument. Corresponds to a @where@ clause in a SQL query.
 having :: NarcTerm -> NarcTerm -> NarcTerm
 having cond body = ifthenelse cond body nil
-
--- Example query
-
-example' = let t = (table "foo" [("a", TBool)]) in
-           foreach t $ \x -> 
-           (having (project x "a")
-             (singleton x))
-
-example2' = let t = (table "foo" [("a", TNum)]) in
-            let s = (table "bar" [("a", TNum)]) in
-            foreach t $ \x -> 
-            foreach s $ \y -> 
-            ifthenelse (primApp "<" [project x "a", project y "a"])
-             (singleton x)
-             (singleton y)
-
-example3' =
-    let t = table "employees" [("name", TString), ("salary", TNum)] in
-    foreach t $ \emp ->
-    having (primApp "<" [cnst' (20000::Integer), project emp "salary"]) $
-      singleton (record [("nom", project emp "name")])
-
--- Unit tests ----------------------------------------------------------
-
-test_example =
-    TestList [
-        SQL.serialize (typeCheckAndCompile (realize example'))
-        ~?= "select _0.a as a from foo as _0 where _0.a"
-        ,
-        SQL.serialize (typeCheckAndCompile (realize example2'))
-        ~?= "(select _0.a as a from foo as _0, bar as _1 where _0.a < _1.a) union (select _1.a as a from foo as _0, bar as _1 where not(_0.a < _1.a))"
-        ,
-        SQL.serialize (typeCheckAndCompile (realize example3'))
-        ~?= "select _0.name as nom from employees as _0 where 20000 < _0.salary"
-    ]
