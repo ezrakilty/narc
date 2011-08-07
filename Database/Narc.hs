@@ -7,15 +7,18 @@
 -- The primed functions in this module are in fact the syntactic 
 -- forms of the embedded language. Use them as, for example:
 -- 
--- >  foreach (table "employees" []) $ \emp ->
--- >    having (primApp "<" [cnst 20000, project emp "salary"]) $
--- >    singleton (record [(project emp "name")])
+-- > let employeesSchema = [("name", TString), ("salary", TNum)] in
+-- > let employeesTable = table "employees" employeesSchema in
+-- > foreach employeesTable $ \emp -> 
+-- >   having (primApp "<" [cnst 20000, project emp "salary"]) $
+-- >   singleton (record [("name", project emp "name")])
 
 module Database.Narc (
   -- * The type of the embedded terms
   NarcTerm,
   -- * Translation to an SQL representation
   narcToSQL, narcToSQLString,
+  SQL.Query, SQL.serialize,
   -- * The language itself
   unit, table, cnst, Constable, primApp, abs, app, ifthenelse, singleton,
   nil, union, record, project, foreach, having,
