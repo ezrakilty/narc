@@ -17,7 +17,8 @@ data Op = Eq | Less
 data UnOp = Min | Max | Count | Sum | Average
         deriving (Eq, Show)
 
--- | Query: the type of SQL queries ("select R from Ts where B")
+-- | The representation of SQL queries (e.g. @select R from Ts where B@)
+
 -- (This is unpleasant; it should probably be organized into various
 -- syntactic classes.)
 data Query = Select {rslt :: Query,                  -- make this a list

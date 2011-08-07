@@ -14,7 +14,7 @@ Synopsis:            Query SQL databases using Nested Relational Calculus embedd
 
 -- A longer description of the package.
 Description:         Narc is an embedded language for querying SQL databases, 
-		     which permits using the "nested relational" model, a more
+		     which permits using the ``nested relational'' model, a more
 		     flexible model than the traditional relational model of SQL
 		     databases. In spite of this richer data model, queries are
 		     transformed into SQL to run against standard databases.

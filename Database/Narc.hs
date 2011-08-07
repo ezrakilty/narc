@@ -14,13 +14,11 @@
 -- >   singleton (record [("name", project emp "name")])
 
 module Database.Narc (
-  -- * The type of the embedded terms
-  NarcTerm,
   -- * Translation to an SQL representation
   narcToSQL, narcToSQLString,
-  SQL.Query, SQL.serialize,
+  SQL.serialize,
   -- * The language itself
-  unit, table, cnst, Constable, primApp, abs, app, ifthenelse, singleton,
+  unit, table, cnst, primApp, abs, app, ifthenelse, singleton,
   nil, union, record, project, foreach, having,
   Type(..)
 ) where
@@ -98,6 +96,7 @@ unit = return $ (!) Unit
 -- | A polymorphic way of embedding constants into a term.
 class Constable a where
     -- | Lift a constant value into a query.
+    -- @Constable@ types currently include @Bool@ and @Integer@.
     cnst :: a -> NarcTerm
 instance Constable Bool where cnst b = return ((!)(Bool b))
 instance Constable Integer where cnst n = return ((!)(Num n))
