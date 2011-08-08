@@ -18,15 +18,8 @@ data Query =
       tabs :: [(Tabname, Tabname, Type)],
       cond :: [QBase]
     }
-    -- | QNum Integer
-    -- | QBool Bool
-    -- | QNot Query
-    -- | QOp Query Op Query
-    -- | QField String String
     | QRecord [(Field, QBase)]
     | QUnion Query Query
-    | QIf QBase Query Query
---    | QExists Query
       deriving(Eq, Show)
 
 -- | Atomic-typed query fragments.
@@ -58,7 +51,6 @@ sizeQueryExact (q@(Select _ _ _)) =
     sizeQueryExact (rslt q) + (sum $ map sizeQueryExactB (cond q))
 sizeQueryExact (QRecord fields) = sum [sizeQueryExactB b | (a, b) <- fields]
 sizeQueryExact (QUnion m n) = sizeQueryExact m + sizeQueryExact n
-sizeQueryExact (QIf c a b) = sizeQueryExactB c + sizeQueryExact a + sizeQueryExact b
 
 sizeQueryExactB (BNum n) = 1
 sizeQueryExactB (BBool b) = 1
@@ -113,8 +105,6 @@ sizeQuery q = loop q
             S (sum (map sizeQueryB (cond q)) + loop (rslt q))
         loop (QRecord fields) = sum (map sizeQueryB (map snd fields))
         loop (QUnion a b) = S (loop a + loop b)
-        loop (QIf c a b) = 
-            sizeQueryB c + loop a + loop b
 
 sizeQueryB :: QBase -> Unary
 sizeQueryB (BNum i) = 1
@@ -161,7 +151,6 @@ groundQueryExpr :: Query -> Bool
 groundQueryExpr (qry@(Select _ _ _)) = False
 groundQueryExpr (QUnion a b) = False
 groundQueryExpr (QRecord fields) = all (groundQueryExprB . snd) fields
-groundQueryExpr (QIf c a b) = groundQueryExprB c && all groundQueryExpr [a,b]
 
 groundQueryExprB (BExists qry) = groundQuery qry
 groundQueryExprB (BOp b1 _ b2) = groundQueryExprB b1 && groundQueryExprB b2
