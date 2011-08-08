@@ -16,16 +16,18 @@ bind x v env = (x,v):env
 
 type Env = [(Var, Value)]
 
-data Value = VUnit | VBool Bool | VNum Integer
+data Value = VUnit | VBool Bool | VNum Integer | VString String
             | VList [Value]
             | VRecord [(String, Value)]
             | VAbs Var TypedTerm Env
         deriving (Eq, Show)
 
+-- | Inject a data value back into a literal term that denotes it.
 fromValue :: Value -> TypedTerm
 fromValue VUnit = (Unit, undefined)
 fromValue (VBool b) = (Bool b, undefined)
 fromValue (VNum n) = (Num n, undefined)
+fromValue (VString s) = (String s, undefined)
 fromValue (VList xs) = foldr1 union (map singleton $ map fromValue xs)
     where union x y = (x `Union` y, undefined)
           singleton x = (Singleton x, undefined)
@@ -56,6 +58,7 @@ eval :: Env -> TypedTerm -> Value
 eval env (Unit, _) = (VUnit)
 eval env (Bool b, q) = (VBool b)
 eval env (Num n, q) = (VNum n)
+eval env (String s, q) = (VString s)
 eval env (PrimApp prim args, q) = 
     let (vArgs) = map (eval env) args in
     (appPrim prim vArgs)

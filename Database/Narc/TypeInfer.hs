@@ -227,7 +227,9 @@ typingTest1 =
   in
   (resultTy, funcArgSubst,
    case resultTy of
-   TArr (TList (TList (TVar a))) (TList (TVar b)) -> a == b)
+   TArr (TList (TList (TVar a))) (TList (TVar b)) -> a == b
+   _ -> False    -- unexpected form of result!
+  )
 
 typingTest = let (_,_,x) = typingTest1 in 
              TestCase (unitAssert x)

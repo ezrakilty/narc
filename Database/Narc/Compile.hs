@@ -10,7 +10,7 @@ import Database.Narc.AST.Pretty ()
 import Database.Narc.Contract
 import Database.Narc.Debug (forceAndReport)
 import Database.Narc.Pretty
-import Database.Narc.SQL as SQL
+import qualified Database.Narc.SQL as SQL
 import Database.Narc.Type as Type
 import Database.Narc.TypeInfer
 import Database.Narc.Util (image, maps, alistmap)
@@ -23,8 +23,8 @@ import Database.Narc.Util (image, maps, alistmap)
 
 -- { Compilation } -----------------------------------------------------
 
-etaExpand :: TypedTerm -> [(String, Type)] -> TypedTerm
-etaExpand expr fieldTys =
+etaExpandRecord :: TypedTerm -> [(String, Type)] -> TypedTerm
+etaExpandRecord expr fieldTys =
     let exprTy = TRecord fieldTys in
     (Record [(field, ((Project expr field), fTy))
              | (field, fTy) <- fieldTys], 
@@ -43,7 +43,7 @@ normTerm env (expr@(Var x, t)) =
     -- Eta-expand at record type.
     if (maps x) env then 
         case t of
-          TRecord t' -> etaExpand expr t'
+          TRecord t' -> etaExpandRecord expr t'
           _ -> (Var x, t) 
     else
       error $ "Free variable "++ x ++ " in normTerm"
@@ -162,8 +162,8 @@ minFreeFor n = head $ variables \\ fvs n
 
 -- | @translateTerm@ homomorphically translates a normal-form Term to an
 -- | SQL Query.
-translateTerm :: TypedTerm -> Query
-translateTerm (v `Union` u, _) = (translateTerm v) `QUnion` (translateTerm u)
+translateTerm :: TypedTerm -> SQL.Query
+translateTerm (v `Union` u, _) = (translateTerm v) `SQL.Union` (translateTerm u)
 translateTerm (Nil, _)         = SQL.emptyQuery
 translateTerm (f@(Comp _ (Table _ _, _) _, _))                  = translateF f
 translateTerm (f@(If _ _ (Nil, _), _))                          = translateF f
@@ -176,39 +176,50 @@ translateTerm x =
 -- classes (in the grammar of the normalized form) which they handle.
 -- (F for "for comprehension", Z for "final bit of a nest of
 -- comprehensions", and B for "base type"
-translateF :: Term b -> Query
+translateF :: Term b -> SQL.Query
 translateF (Comp x (Table tabname fTys, _) n, _) =
-    let q@(Select _ _ _) = translateF n in
-    Select {rslt = rslt q,
-            tabs = (tabname, x, TRecord fTys):tabs q,
-            cond = cond q}
+    let q@(SQL.Select _ _ _) = translateF n in
+    SQL.Select {SQL.rslt = SQL.rslt q,
+               SQL.tabs = (tabname, x, TRecord fTys):SQL.tabs q,
+               SQL.cond = SQL.cond q}
 translateF (z@(If _ _ (Nil, _), _))                             = translateZ z
 translateF (z@(Singleton (Record _, _), _))                     = translateZ z
 translateF (z@(Table _ _, _))                                   = translateZ z
 translateF m = error $ "translateF for unexpected term: " ++ pretty (fst m)
 
-translateZ :: Term b -> Query
+translateZ :: Term b -> SQL.Query
 translateZ (If b z (Nil, _), _) =
-    let q@(Select _ _ _) = translateZ z in
-    Select {rslt=rslt q, tabs = tabs q, cond = translateB b : cond q}
+    let q@(SQL.Select _ _ _) = translateZ z in
+    SQL.Select {SQL.rslt=SQL.rslt q,
+                   SQL.tabs = SQL.tabs q,
+                SQL.cond = translateB b : SQL.cond q}
 translateZ (Singleton (Record fields, _), _) = 
-    Select {rslt = alistmap translateB fields, tabs = [], cond = []}
+    SQL.Select {SQL.rslt = alistmap translateB fields,
+                SQL.tabs = [],
+                SQL.cond = []}
 translateZ (Table tabname fTys, _) =
-    Select {rslt = [(l,BField tabname l) | (l,_ty) <- fTys],
-            tabs = [(tabname, tabname, TRecord fTys)], cond = []}
+    SQL.Select {SQL.rslt = [(l,SQL.Field tabname l) | (l,_ty) <- fTys],
+                SQL.tabs = [(tabname, tabname, TRecord fTys)],
+                SQL.cond = []}
 translateZ z = error$ "translateZ got unexpected term: " ++ (pretty.fst) z
 
-translateB :: Term b -> QBase
-translateB (If b b' b'', _)            = BIf (translateB b)
+translateB :: Term b -> SQL.QBase
+translateB (If b b' b'', _)            = SQL.If (translateB b)
                                            (translateB b') (translateB b'') 
-translateB (Bool n, _)                 = (BBool n)
-translateB (Num n, _)                  = (BNum n)
-translateB (Project (Var x, _) l, _)   = BField x l
-translateB (PrimApp "not" [arg], _)    = BNot (translateB arg)
-translateB (PrimApp "<" [l, r], _)     = BOp (translateB l) Less (translateB r)
+translateB (Bool n, _)                 = (SQL.Lit (SQL.Bool n))
+translateB (Num n, _)                  = (SQL.Lit (SQL.Num n))
+translateB (String s, _)               = (SQL.Lit (SQL.String s))
+translateB (Project (Var x, _) l, _)   = SQL.Field x l
+translateB (PrimApp "not" [arg], _)    = SQL.Not (translateB arg)
+translateB (PrimApp "<" [l, r], _)   = SQL.Op (translateB l) SQL.Less (translateB r)
+translateB (PrimApp "=" [l, r], _)   = SQL.Op (translateB l) SQL.Eq (translateB r)
+translateB (PrimApp "+" [l, r], _)   = SQL.Op (translateB l) SQL.Plus (translateB r)
+translateB (PrimApp "-" [l, r], _)   = SQL.Op (translateB l) SQL.Minus (translateB r)
+translateB (PrimApp "*" [l, r], _)   = SQL.Op (translateB l) SQL.Times (translateB r)
+translateB (PrimApp "/" [l, r], _)   = SQL.Op (translateB l) SQL.Divide (translateB r)
 translateB b = error$ "translateB got unexpected term: " ++ (pretty.fst) b
 
-compile :: TyEnv -> TypedTerm -> Query
+compile :: TyEnv -> TypedTerm -> SQL.Query
 compile env = translateTerm . normTerm env
 
 -- -- Tests

@@ -34,6 +34,7 @@ mr agg xs = map reduceGroup (collate fst xs)
     where reduceGroup xs = let (as, bs) = unzip xs in
                              (the as, agg bs)
           the xs | allEq xs = head xs
+          the _ = error "Argument to 'the' non-unique"
 
 onCorresponding :: Ord a => ([b]->c) -> [(a,b)] -> [c]
 onCorresponding agg xs = map reduceGroup (collate fst xs)

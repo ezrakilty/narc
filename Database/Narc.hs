@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 -- | Query SQL databases using Nested Relational Calculus embedded in
@@ -98,8 +98,9 @@ class Constable a where
     -- | Lift a constant value into a query.
     -- @Constable@ types currently include @Bool@ and @Integer@.
     cnst :: a -> NarcTerm
-instance Constable Bool where cnst b = return ((!)(Bool b))
+instance Constable Bool    where cnst b = return ((!)(Bool b))
 instance Constable Integer where cnst n = return ((!)(Num n))
+instance Constable String  where cnst s = return ((!)(String s))
 
 -- | Apply some primitive function, such as @(+)@ or @avg@, to a list
 -- of arguments.

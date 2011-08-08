@@ -24,7 +24,7 @@ instance Ord Unary where
     min Z y = Z
     min x Z = Z
     min (S x) (S y) = S (min x y)
-    Z < Z = False
+    x < Z = False
     Z < S y = True
     S x < S y = x < y
 

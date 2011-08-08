@@ -12,6 +12,7 @@ instance Pretty (Term' a) where
   pretty (Unit) = "()"
   pretty (Bool b) = show b
   pretty (Num n) = show n
+  pretty (String s) = show s
   pretty (PrimApp f args) = f ++ "(" ++ mapstrcat "," pretty args ++ ")"
   pretty (Var x) = x
   pretty (Abs x n) = "(fun " ++ x ++ " -> " ++ pretty n ++ ")"

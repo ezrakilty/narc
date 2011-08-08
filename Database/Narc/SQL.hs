@@ -20,21 +20,25 @@ data Query =
       tabs :: [(Tabname, Tabname, Type)],
       cond :: [QBase]
     }
-    | QUnion Query Query
+    | Union Query Query
       deriving(Eq, Show)
 
 type Row = [(Field, QBase)]
 
 -- | Atomic-typed query fragments.
 data QBase =
-      BNum Integer
-    | BBool Bool
-    | BNot QBase
-    | BOp QBase Op QBase
-    | BField String String
-    | BIf QBase QBase QBase
-    | BExists Query
+      Lit DataItem
+    | Not QBase
+    | Op QBase Op QBase
+    | Field String String
+    | If QBase QBase QBase
+    | Exists Query
       deriving (Eq, Show)
+
+data DataItem = Num Integer
+              | Bool Bool
+              | String String
+  deriving (Eq, Show)
 
 -- | Binary operators used in queries.
 data Op = Eq | Less
@@ -46,39 +50,26 @@ data UnOp = Min | Max | Count | Sum | Average
         deriving (Eq, Show)
 
 -- | The trivial query, returning no rows.
-emptyQuery = Select {rslt = [], tabs = [], cond = [BBool False]}
+emptyQuery = Select {rslt = [], tabs = [], cond = [Lit (Bool False)]}
 
--- | The exact number of nodes in a SQL query.
-sizeQueryExact :: Query -> Integer
-sizeQueryExact (q@(Select _ _ _)) =
-    sum [sizeQueryExactB b | (a, b) <- rslt q] +
-    sum (map sizeQueryExactB (cond q))
-sizeQueryExact (QUnion m n) = sizeQueryExact m + sizeQueryExact n
+-- | @sizeQuery@ returns the number of nodes in a query. It's
+-- | abstracted to Num to allow using Unary, and then ``lazily''
+-- | counting up to a certain amount. This helps if you only want to
+-- | know whether a (potentially-enormous) query is larger than some
+-- | modest cutoff.
+sizeQuery :: Num a => Query -> a
+sizeQuery  (q@(Select _ _ _)) =
+    1 + (sum (map sizeQueryB (cond q)) +
+       sum (map sizeQueryB (map snd (rslt q))))
+sizeQuery (Union a b) = 1 + (sizeQuery a + sizeQuery b)
 
-sizeQueryExactB (BNum n) = 1
-sizeQueryExactB (BBool b) = 1
-sizeQueryExactB (BNot q) = 1 + sizeQueryExactB q
-sizeQueryExactB (BOp a op b) = 1 + sizeQueryExactB a + sizeQueryExactB b
-sizeQueryExactB (BField t f) = 1
-sizeQueryExactB (BExists q) = 1 + sizeQueryExact q
-
--- | @sizeQuery@ approximates the size of a query by calling giving up
--- | its node count past a certain limit (currently limit = 100, below).
-sizeQuery :: Query -> Unary
-sizeQuery q = loop q
-  where loop :: Query -> Unary
-        loop (q@(Select _ _ _)) =
-            S (sum (map sizeQueryB (cond q)) +
-               sum (map sizeQueryB (map snd (rslt q))))
-        loop (QUnion a b) = S (loop a + loop b)
-
-sizeQueryB :: QBase -> Unary
-sizeQueryB (BNum i)     = 1
-sizeQueryB (BBool b)    = 1
-sizeQueryB (BNot q)     = S (sizeQueryB q)
-sizeQueryB (BOp a op b) = S (sizeQueryB a + sizeQueryB b)
-sizeQueryB (BField t f) = 1
-sizeQueryB (BExists q)  = S (sizeQuery q)
+sizeQueryB :: Num a => QBase -> a
+sizeQueryB (Lit _)     = 1
+sizeQueryB (Not q)     = 1 + (sizeQueryB q)
+sizeQueryB (Op a op b) = 1 + (sizeQueryB a + sizeQueryB b)
+sizeQueryB (If c a b)  = 1 + (sizeQueryB c + sizeQueryB a + sizeQueryB b)
+sizeQueryB (Field t f) = 1
+sizeQueryB (Exists q)  = 1 + (sizeQuery q)
 
 -- Basic functions on query expressions --------------------------------
 
@@ -88,9 +79,9 @@ freevarsQuery (q@(Select _ _ _)) =
     (nub $ concat $ map freevarsQueryB (cond q))
 freevarsQuery _ = []
 
-freevarsQueryB (BOp lhs op rhs) =
+freevarsQueryB (Op lhs op rhs) =
     nub (freevarsQueryB lhs ++ freevarsQueryB rhs)
-freevarsQueryB (BNot arg) = freevarsQueryB arg
+freevarsQueryB (Not arg) = freevarsQueryB arg
 freevarsQueryB _ = []
 
 -- | Serialize a @Query@ to its ASCII SQL serialization.
@@ -102,25 +93,28 @@ serialize q@(Select _ _ _) =
     " where " ++ if null (cond q) then
                      "true"
                  else mapstrcat " and " serializeAtom (cond q)
-serialize (QUnion l r) =
+serialize (Union l r) =
     "(" ++ serialize l ++ ") union (" ++ serialize r ++ ")"
 
 serializeRow (flds) =
     mapstrcat ", " (\(x, expr) -> serializeAtom expr ++ " as " ++ x) flds
 
-serializeAtom (BNum i) = show i
-serializeAtom (BBool b) = show b
-serializeAtom (BNot expr) = "not(" ++ serializeAtom expr ++ ")"
-serializeAtom (BOp l op r) = 
+serializeAtom (Lit lit) = serializeLit lit
+serializeAtom (Not expr) = "not(" ++ serializeAtom expr ++ ")"
+serializeAtom (Op l op r) = 
     serializeAtom l ++ " " ++ serializeOp op ++ " " ++ serializeAtom r
-serializeAtom (BField rec fld) = rec ++ "." ++ fld
-serializeAtom (BIf cond l r) = 
+serializeAtom (Field rec fld) = rec ++ "." ++ fld
+serializeAtom (If cond l r) = 
     "case when " ++ serializeAtom cond ++
     " then " ++ serializeAtom l ++
     " else " ++ serializeAtom r ++
     " end)"
-serializeAtom (BExists q) =
+serializeAtom (Exists q) =
     "exists (" ++ serialize q ++ ")"
+
+serializeLit (Num i) = show i
+serializeLit (Bool b) = show b
+serializeLit (String s) = show s
 
 serializeOp Eq = "="
 serializeOp Less = "<"

@@ -88,6 +88,7 @@ rename x y (Comp z src body, q)
     | otherwise= (Comp z (rename x y src) (rename x y body), q)
 rename x y (String n, q) = (String n, q)
 rename x y (Bool b, q) = (Bool b, q)
+rename x y (Num n, q) = (Num n, q)
 rename x y (Table s t, q) = (Table s t, q)
 rename x y (If c a b, q) = (If (rename x y c) (rename x y a) (rename x y b), q)
 rename x y (Unit, q) = (Unit, q)
@@ -149,34 +150,34 @@ lazyDepth _ = 1 : []
 -- Generic term-recursion functions ------------------------------------
 
 entagulate :: (Term a -> b) -> Term a -> Term b
-entagulate f (Bool b, d) = (Bool b, f (Bool b, d))
-entagulate f (Num n, d) = (Num n, f (Num n, d))
-entagulate f (String s, d) = (String s, f (String s, d))
-entagulate f (Var x, d) = (Var x, f (Var x, d))
-entagulate f (Abs x n, d) = (Abs x (entagulate f n), f (Abs x n, d))
-entagulate f (App l m, d) = (App (entagulate f l) (entagulate f m),
-                          f (App l m, d))
-entagulate f (If c a b, d) =
+entagulate f m@(Unit, d) = (Unit, f m)
+entagulate f m@(PrimApp fn xs, d) = (PrimApp fn (map (entagulate f) xs), f m)
+entagulate f m@(Bool b, d) = (Bool b, f m)
+entagulate f m@(Num n, d) = (Num n, f m)
+entagulate f m@(String s, d) = (String s, f m)
+entagulate f m@(Var x, d) = (Var x, f m)
+entagulate f m@(Abs x n, d) = (Abs x (entagulate f n), f m)
+entagulate f m@(App l' m', d) = (App (entagulate f l') (entagulate f m'),
+                          f m)
+entagulate f m@(If c a b, d) =
     (If (entagulate f c)
      (entagulate f a)
      (entagulate f b),
-     f (If c a b, d))
-entagulate f (Table tab fields, d) = (Table tab fields, f (Table tab fields, d))
-entagulate f (Nil, d) = (Nil, f (Nil,d))
-entagulate f (Singleton m, d) = (Singleton (entagulate f m),
-                              f (Singleton m, d))
-entagulate f (Union a b, d) =
+     f m)
+entagulate f m@(Table tab fields, d) = (Table tab fields, f m)
+entagulate f m@(Nil, d) = (Nil, f m)
+entagulate f m@(Singleton m', d) = (Singleton (entagulate f m'),
+                              f m)
+entagulate f m@(Union a b, d) =
     (Union
      (entagulate f a)
      (entagulate f b),
-     f (Union a b, d))
-entagulate f (Record fields, d) = (Record (alistmap (entagulate f) fields), 
-                                f (Record fields, d))
-entagulate f (Project m a, d) = (Project (entagulate f m) a,
-                              f (Project m a, d))
-entagulate f (Comp x src body, d) = 
-    (Comp x (entagulate f src) (entagulate f body),
-     f (Comp x src body, d))
+     f m)
+entagulate f m@(Record fields, d) =
+    (Record (alistmap (entagulate f) fields), f m)
+entagulate f m@(Project m' a, d) = (Project (entagulate f m') a, f m)
+entagulate f m@(Comp x src body, d) = 
+    (Comp x (entagulate f src) (entagulate f body), f m)
 
 retagulate :: (Term a -> a) -> Term a -> Term a
 retagulate f (Unit, d) = (Unit, f (Unit, d))

@@ -24,6 +24,12 @@ example3' =
     having (primApp "<" [cnst (20000::Integer), project emp "salary"]) $
       result [("nom", project emp "name")]
 
+example4' =
+    let t = table "employees" [("name", TString), ("salary", TNum)] in
+    foreach t $ \emp ->
+    having (primApp "=" [cnst "Joe", project emp "name"]) $
+      result [("nom", project emp "name")]
+
 -- Unit tests ----------------------------------------------------------
 
 test_example =

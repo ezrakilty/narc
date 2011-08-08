@@ -16,23 +16,32 @@ instance Pretty Query where
                    where pretty_cond [] = "true"
                          pretty_cond cond = mapstrcat " and " pretty cond
 
-  pretty (QUnion a b) = pretty a ++ " union all " ++ pretty b
+  pretty (Union a b) = pretty a ++ " union all " ++ pretty b
 
 instance Pretty QBase where
-  pretty (BNum n) = show n
-  pretty (BBool True) = "true"
-  pretty (BBool False) = "false"
+  pretty (Lit lit) = pretty lit
    
-  pretty (BField a b) = a ++ "." ++ b
-  pretty (BNot b) = "not " ++ pretty b
-  pretty (BOp lhs op rhs) = pretty lhs ++ pretty op ++ pretty rhs
+  pretty (Field a b) = a ++ "." ++ b
+  pretty (Not b) = "not " ++ pretty b
+  pretty (Op lhs op rhs) = pretty lhs ++ pretty op ++ pretty rhs
 
-  pretty (BIf c t f) = "if " ++ pretty c ++ " then " ++ pretty t
+  pretty (If c t f) = "if " ++ pretty c ++ " then " ++ pretty t
                        ++ " else " ++ pretty f
+
+  pretty (Exists q) = "exists (" ++ pretty q ++ ")"
+
+instance Pretty DataItem where
+  pretty (Num n) = show n
+  pretty (String s) = show s -- FIXME use SQL-style quoting.
+  pretty (Bool True) = "true"
+  pretty (Bool False) = "false"
 
 -- Pretty-printing for Op, common to both AST and SQL languages.
 
 instance Pretty Op where
-  pretty Plus = " + "
-  pretty Eq = " = "
-  pretty Less = " < "
+  pretty Plus   = " + "
+  pretty Minus  = " - "
+  pretty Times  = " * "
+  pretty Divide = " / "
+  pretty Eq     = " = "
+  pretty Less   = " < "
