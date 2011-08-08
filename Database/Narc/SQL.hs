@@ -1,3 +1,5 @@
+-- | A direct representation of SQL queries.
+
 module Database.Narc.SQL where
 
 import Data.List (nub, intercalate)
@@ -6,121 +8,170 @@ import Database.Narc.Common
 import Database.Narc.Type
 import Database.Narc.Util (u, mapstrcat)
 
---
--- SQL Queries ---------------------------------------------------------
---
-
-data Op = Eq | Less
-        | Plus | Minus | Times | Divide
-        deriving(Eq, Show)
-
-data UnOp = Min | Max | Count | Sum | Average
-        deriving (Eq, Show)
-
 -- | The representation of SQL queries (e.g. @select R from Ts where B@)
 
 -- (This is unpleasant; it should probably be organized into various
 -- syntactic classes.)
-data Query = Select {rslt :: Query,                  -- make this a list
-                     tabs :: [(Field, Field, Type)], -- use [(Field,Type)]
-                     cond :: [Query]
-                    }
-           | QNum Integer
-           | QBool Bool
-           | QNot Query
-           | QOp Query Op Query
-           | QField String String
-           | QRecord [(Field, Query)]
-           | QUnion Query Query
-           | QIf Query Query Query
-           | QExists Query
+data Query =
+    Select {
+      rslt :: Query,                      -- TBD: make this a list
+      tabs :: [(Tabname, Tabname, Type)],
+      cond :: [QBase]
+    }
+    -- | QNum Integer
+    -- | QBool Bool
+    -- | QNot Query
+    -- | QOp Query Op Query
+    -- | QField String String
+    | QRecord [(Field, QBase)]
+    | QUnion Query Query
+    | QIf QBase Query Query
+--    | QExists Query
+      deriving(Eq, Show)
+
+-- | Atomic-typed query fragments.
+data QBase =
+      BNum Integer
+    | BBool Bool
+    | BNot QBase
+    | BOp QBase Op QBase
+    | BField String String
+    | BIf QBase QBase QBase
+    | BExists Query
+      deriving (Eq, Show)
+
+-- | Binary operators used in queries.
+data Op = Eq | Less
+        | Plus | Minus | Times | Divide
         deriving(Eq, Show)
 
-emptyQuery = Select {rslt = QRecord [], tabs = [], cond = [QBool False]}
+-- | Unary operators used in queries.
+data UnOp = Min | Max | Count | Sum | Average
+        deriving (Eq, Show)
 
--- | @sizeQuery@ approximates the size of a query by calling giving up
--- | its node count past a certain limit (currently limit = 100, below).
+-- | The trivial query, returning no rows.
+emptyQuery = Select {rslt = QRecord [], tabs = [], cond = [BBool False]}
+
+-- | The exact number of nodes in a SQL query.
 sizeQueryExact :: Query -> Integer
 sizeQueryExact (q@(Select _ _ _)) =
-    sizeQueryExact (rslt q) + (sum $ map sizeQueryExact (cond q))
-sizeQueryExact (QNum n) = 1
-sizeQueryExact (QBool b) = 1
-sizeQueryExact (QNot q) = 1 + sizeQueryExact q
-sizeQueryExact (QOp a op b) = 1 + sizeQueryExact a + sizeQueryExact b
-sizeQueryExact (QField t f) = 1
-sizeQueryExact (QRecord fields) = sum [sizeQueryExact n | (a, n) <- fields]
+    sizeQueryExact (rslt q) + (sum $ map sizeQueryExactB (cond q))
+sizeQueryExact (QRecord fields) = sum [sizeQueryExactB b | (a, b) <- fields]
 sizeQueryExact (QUnion m n) = sizeQueryExact m + sizeQueryExact n
-sizeQueryExact (QIf c a b) = sizeQueryExact c + sizeQueryExact a + sizeQueryExact b
-sizeQueryExact (QExists q) = 1 + sizeQueryExact q
+sizeQueryExact (QIf c a b) = sizeQueryExactB c + sizeQueryExact a + sizeQueryExact b
+
+sizeQueryExactB (BNum n) = 1
+sizeQueryExactB (BBool b) = 1
+sizeQueryExactB (BNot q) = 1 + sizeQueryExactB q
+sizeQueryExactB (BOp a op b) = 1 + sizeQueryExactB a + sizeQueryExactB b
+sizeQueryExactB (BField t f) = 1
+sizeQueryExactB (BExists q) = 1 + sizeQueryExact q
+
+data Unary = Z | S Unary
+    deriving (Eq, Show)
+
+instance Num Unary where
+    Z     + y = y
+    x     + Z = x
+    (S x) + y = S (x `rightPlus` y)
+
+    abs x = x
+    signum Z = Z
+    signum (S x) = S Z
+    fromInteger x | 0 == x = Z
+                  | 0 <= x = S (fromInteger (x-1))
+                  | otherwise = error "unary represents positive integers only"
+
+    -- | Multiplication. Discouraged because slow.
+    Z * y = Z
+    x * Z = Z
+    (S x) * y = y + (x * y)
+
+instance Ord Unary where
+    min Z y = Z
+    min x Z = Z
+    min (S x) (S y) = S (min x y)
+
+-- | right-recursive version of (+), to balance the recursion.
+rightPlus :: Unary -> Unary -> Unary
+rightPlus Z     y = y
+rightPlus x     Z = x
+rightPlus x (S y) = S (x + y)
+
+uToIntMax :: Unary -> Integer -> Integer
+uToIntMax x max = loop x max 0
+    where loop Z max result = result
+          loop (S z) max result | result < max  = loop z max (result+1)
+                                | result >= max = result
 
 -- | @sizeQuery@ approximates the size of a query by calling giving up
 -- | its node count past a certain limit (currently limit = 100, below).
-sizeQuery :: Query -> Integer
-sizeQuery qy = loop 0 qy
-    where
-      loop' :: Integer -> Query -> Integer
-      loop' n qy = if n > limit then n else loop n qy
+sizeQuery :: Query -> Unary
+sizeQuery q = loop q
+  where loop :: Query -> Unary
+        loop (q@(Select _ _ _)) =
+            S (sum (map sizeQueryB (cond q)) + loop (rslt q))
+        loop (QRecord fields) = sum (map sizeQueryB (map snd fields))
+        loop (QUnion a b) = S (loop a + loop b)
+        loop (QIf c a b) = 
+            sizeQueryB c + loop a + loop b
 
-      loop :: Integer -> Query -> Integer
-      loop n (q@(Select _ _ _)) = 
-          let n' = foldr (\r n -> loop' n r) n (cond q) in
-          loop' n' (rslt q)
-      loop n (QNum i) = n + 1
-      loop n (QBool b) = n + 1
-      loop n (QNot q) = loop' (n+1) q
-      loop n (QOp a op b) = let n' = loop' (n+1) a in loop' n' b
-      loop n (QField t f) = n + 1
-      loop n (QRecord fields) = foldr (\r n -> loop' n r) n (map snd fields)
-      loop n (QUnion a b) = let n' = loop' (n+1) a in loop' n' b
-      loop n (QIf c a b) = 
-          let n' = loop' (n+1) c in
-          let n'' = loop' n' a in
-          loop' n'' b
-      loop n (QExists q) = loop' (n+1) q
-
-      limit = 100
+sizeQueryB :: QBase -> Unary
+sizeQueryB (BNum i) = 1
+sizeQueryB (BBool b) = 1
+sizeQueryB (BNot q) = S (sizeQueryB q)
+sizeQueryB (BOp a op b) = S (sizeQueryB a + sizeQueryB b)
+sizeQueryB (BField t f) = 1
+sizeQueryB (BExists q) = S (sizeQuery q)
 
 -- Basic functions on query expressions --------------------------------
 
 freevarsQuery (q@(Select _ _ _)) = 
     (freevarsQuery (rslt q))
     `u`
-    (nub $ concat $ map freevarsQuery (cond q))
-freevarsQuery (QOp lhs op rhs) = nub (freevarsQuery lhs ++ freevarsQuery rhs)
-freevarsQuery (QRecord fields) = concatMap (freevarsQuery . snd) fields
+    (nub $ concat $ map freevarsQueryB (cond q))
+freevarsQuery (QRecord fields) = concatMap (freevarsQueryB . snd) fields
 freevarsQuery _ = []
+
+freevarsQueryB (BOp lhs op rhs) = nub (freevarsQueryB lhs ++ freevarsQueryB rhs)
+freevarsQueryB _ = []
 
 isQRecord (QRecord _) = True
 isQRecord _ = False
 
--- | a groundQuery is a *real* SQL query--one without variables or appl'ns.
+-- | A ground query is one without variables or appl'ns.
+-- This is a precondition of representating a real SQL query.
 groundQuery :: Query -> Bool
 groundQuery (qry@(Select _ _ _)) =
-    all groundQueryExpr (cond qry) &&
+    all groundQueryExprB (cond qry) &&
     groundQueryExpr (rslt qry) &&
     isQRecord (rslt qry)
 groundQuery (QUnion a b) = groundQuery a && groundQuery b
-groundQuery (QExists qry) = groundQuery qry
-groundQuery (QRecord fields) = all (groundQuery . snd) fields
-groundQuery (QOp b1 _ b2) = groundQuery b1 && groundQuery b2
-groundQuery (QNum _) = True
-groundQuery (QBool _) = True
-groundQuery (QField _ _) = True
-groundQuery (QNot a) = groundQuery a
+groundQuery (QRecord fields) = all (groundQueryB . snd) fields
 
--- | a groundQueryExpr is an atomic-type expression.
+groundQueryB (BExists qry) = groundQuery qry
+groundQueryB (BOp b1 _ b2) = groundQueryB b1 && groundQueryB b2
+groundQueryB (BNum _) = True
+groundQueryB (BBool _) = True
+groundQueryB (BField _ _) = True
+groundQueryB (BNot a) = groundQueryB a
+
+-- | A ground query ``expression'' is a ground query of row type.
 groundQueryExpr :: Query -> Bool
 groundQueryExpr (qry@(Select _ _ _)) = False
 groundQueryExpr (QUnion a b) = False
-groundQueryExpr (QExists qry) = groundQuery qry
-groundQueryExpr (QRecord fields) = all (groundQueryExpr . snd) fields
-groundQueryExpr (QOp b1 _ b2) = groundQueryExpr b1 && groundQueryExpr b2
-groundQueryExpr (QNot a) = groundQueryExpr a
-groundQueryExpr (QNum _) = True
-groundQueryExpr (QBool _) = True
-groundQueryExpr (QField _ _) = True
-groundQueryExpr (QIf c a b) = all groundQueryExpr [c,a,b]
+groundQueryExpr (QRecord fields) = all (groundQueryExprB . snd) fields
+groundQueryExpr (QIf c a b) = groundQueryExprB c && all groundQueryExpr [a,b]
 
+groundQueryExprB (BExists qry) = groundQuery qry
+groundQueryExprB (BOp b1 _ b2) = groundQueryExprB b1 && groundQueryExprB b2
+groundQueryExprB (BNot a) = groundQueryExprB a
+groundQueryExprB (BNum _) = True
+groundQueryExprB (BBool _) = True
+groundQueryExprB (BField _ _) = True
+
+-- | Serialize a @Query@ to its ASCII SQL serialization.
+-- Dies on those @Query@s that don't represent valid SQL queries.
 serialize :: Query -> String
 serialize q@(Select _ _ _) =
     "select " ++ serializeRow (rslt q) ++
@@ -134,18 +185,18 @@ serialize (QUnion l r) =
 serializeRow (QRecord flds) =
     mapstrcat ", " (\(x, expr) -> serializeAtom expr ++ " as " ++ x) flds
 
-serializeAtom (QNum i) = show i
-serializeAtom (QBool b) = show b
-serializeAtom (QNot expr) = "not(" ++ serializeAtom expr ++ ")"
-serializeAtom (QOp l op r) = 
+serializeAtom (BNum i) = show i
+serializeAtom (BBool b) = show b
+serializeAtom (BNot expr) = "not(" ++ serializeAtom expr ++ ")"
+serializeAtom (BOp l op r) = 
     serializeAtom l ++ " " ++ serializeOp op ++ " " ++ serializeAtom r
-serializeAtom (QField rec fld) = rec ++ "." ++ fld
-serializeAtom (QIf cond l r) = 
+serializeAtom (BField rec fld) = rec ++ "." ++ fld
+serializeAtom (BIf cond l r) = 
     "case when " ++ serializeAtom cond ++
     " then " ++ serializeAtom l ++
     " else " ++ serializeAtom r ++
     " end)"
-serializeAtom (QExists q) =
+serializeAtom (BExists q) =
     "exists (" ++ serialize q ++ ")"
 
 serializeOp Eq = "="
