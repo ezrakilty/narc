@@ -15,20 +15,23 @@ instance Pretty Query where
          " where " ++ pretty_cond cond
                    where pretty_cond [] = "true"
                          pretty_cond cond = mapstrcat " and " pretty cond
-  pretty (QOp lhs op rhs) = pretty lhs ++ pretty op ++ pretty rhs
   pretty (QRecord fields) = "{"++ mapstrcat ", "
                                (\(lbl,expr) -> 
                                     lbl ++ "=" ++ show expr) fields
                           ++ "}"
-  pretty (QNum n) = show n
-  pretty (QBool True) = "true"
-  pretty (QBool False) = "false"
-   
-  pretty (QField a b) = a ++ "." ++ b
 
   pretty (QUnion a b) = pretty a ++ " union all " ++ pretty b
-  pretty (QNot b) = "not " ++ pretty b
-  pretty (QIf c t f) = "if " ++ pretty c ++ " then " ++ pretty t
+
+instance Pretty QBase where
+  pretty (BNum n) = show n
+  pretty (BBool True) = "true"
+  pretty (BBool False) = "false"
+   
+  pretty (BField a b) = a ++ "." ++ b
+  pretty (BNot b) = "not " ++ pretty b
+  pretty (BOp lhs op rhs) = pretty lhs ++ pretty op ++ pretty rhs
+
+  pretty (BIf c t f) = "if " ++ pretty c ++ " then " ++ pretty t
                        ++ " else " ++ pretty f
 
 -- Pretty-printing for Op, common to both AST and SQL languages.
