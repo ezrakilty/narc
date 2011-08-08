@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
 
 module Database.Narc.AST (
   Term'(..),
@@ -149,6 +149,8 @@ lazyDepth _ = 1 : []
 
 -- Generic term-recursion functions ------------------------------------
 
+-- | Apply a function to each term while traversing down, and use its
+-- | result as the annotation of that node.
 entagulate :: (Term a -> b) -> Term a -> Term b
 entagulate f m@(Unit, d) = (Unit, f m)
 entagulate f m@(PrimApp fn xs, d) = (PrimApp fn (map (entagulate f) xs), f m)
@@ -179,43 +181,59 @@ entagulate f m@(Project m' a, d) = (Project (entagulate f m') a, f m)
 entagulate f m@(Comp x src body, d) = 
     (Comp x (entagulate f src) (entagulate f body), f m)
 
+-- | Apply a function to each node while traversing *up*, using its
+-- | result as the new annotation for that node.
+
+-- (FIXME: I think all this can be refactored to a nice BU/TD
+-- combinator that doesn't know about annotations.
 retagulate :: (Term a -> a) -> Term a -> Term a
 retagulate f (Unit, d) = (Unit, f (Unit, d))
 retagulate f (Bool b, d) = (Bool b, f (Bool b, d))
 retagulate f (Num n, d) = (Num n, f (Num n, d))
 retagulate f (String s, d) = (String s, f (String s, d))
 retagulate f (Var x, d) = (Var x, f (Var x, d))
-retagulate f (Abs x n, d) = (Abs x (retagulate f n),
-                             f (Abs x (retagulate f n), d))
-retagulate f (App l m, d) = (App (retagulate f l) (retagulate f m),
-                          f (App (retagulate f l) (retagulate f m), d))
-retagulate f (PrimApp fn ar, d) = (PrimApp fn (map (retagulate f) ar),
-                                   f (PrimApp fn (map (retagulate f) ar), d))
+retagulate f (Abs x n, d) =
+    let n' = (retagulate f n) in
+    let result = Abs x n' in
+    (result, f (Abs x n', d))
+retagulate f (App l m, d) = 
+    let l' = retagulate f l in
+    let m' = retagulate f m in
+    let result = App l' m' in
+    (result, f (result, d))
+retagulate f (PrimApp fn args, d) =
+    let result = PrimApp fn (map (retagulate f) args) in
+    (result, f (result, d))
 retagulate f (If c a b, d) =
-    (If (retagulate f c)
-     (retagulate f a)
-     (retagulate f b),
-     f (If (retagulate f c)
-        (retagulate f a)
-        (retagulate f b), d))
-retagulate f (Table tab fields, d) = (Table tab fields, f (Table tab fields, d))
+    let result = If (retagulate f c)
+                    (retagulate f a)
+                    (retagulate f b)
+    in
+      (result, f (result, d))
+retagulate f (Table tab fields, d) =
+    let result = Table tab fields in
+    (result, f (result, d))
 retagulate f (Nil, d) = (Nil, f (Nil, d))
-retagulate f (Singleton m, d) = (Singleton (retagulate f m),
-                              f (Singleton (retagulate f m), d))
-retagulate f (Union l m, d) = (Union (retagulate f l) (retagulate f m),
-                               f (Union (retagulate f l) (retagulate f m), d))
-retagulate f (Record fields, d) = (Record (alistmap (retagulate f) fields), 
-                                f (Record (alistmap (retagulate f) fields), d))
-retagulate f (Project m a, d) = (Project (retagulate f m) a,
-                              f (Project (retagulate f m) a, d))
+retagulate f (Singleton m, d) =
+    let result = Singleton (retagulate f m) in
+    (result, f (result, d))
+retagulate f (Union l m, d) =
+    let result = Union (retagulate f l) (retagulate f m) in
+    (result, f (result, d))
+retagulate f (Record fields, d) =
+    let result = Record (alistmap (retagulate f) fields) in
+    (result, f (result, d))
+retagulate f (Project m a, d) =
+    let result = Project (retagulate f m) a in
+    (result, f (result, d))
 retagulate f (Comp x src body, d) = 
-    (Comp x (retagulate f src) (retagulate f body),
-     f (Comp x (retagulate f src) (retagulate f body), d))
+    let result = Comp x (retagulate f src) (retagulate f body) in
+    (result, f (result, d))
 
 strip = entagulate (const ())
 
--- | numComps: Number of comprehensions in an expression, a measure of
--- the complexity of the query.
+-- | The number of comprehensions in an expression, a measure of the
+-- complexity of the query.
 numComps (Comp x src body, _) = 1 + numComps src + numComps body
 numComps (PrimApp _ args, _) = sum $ map numComps args
 numComps (Abs _ n, _) = numComps n
@@ -285,6 +303,7 @@ unit_ = (!)Unit
 class Const a where cnst_ :: a -> Term ()
 instance Const Bool where cnst_ b = (!)(Bool b)
 instance Const Integer where cnst_ n = (!)(Num n)
+instance Const String where cnst_ s = (!)(String s)
 primApp_ f args = (!)(PrimApp f args)
 var_ x = (!)(Var x)
 abs_ x body = (!)(Abs x body)
