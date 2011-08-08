@@ -14,13 +14,14 @@ import Database.Narc.Util (u, mapstrcat)
 -- syntactic classes.)
 data Query =
     Select {
-      rslt :: Query,                      -- TBD: make this a list
+      rslt :: Row,
       tabs :: [(Tabname, Tabname, Type)],
       cond :: [QBase]
     }
-    | QRecord [(Field, QBase)]
     | QUnion Query Query
       deriving(Eq, Show)
+
+type Row = [(Field, QBase)]
 
 -- | Atomic-typed query fragments.
 data QBase =
@@ -43,13 +44,13 @@ data UnOp = Min | Max | Count | Sum | Average
         deriving (Eq, Show)
 
 -- | The trivial query, returning no rows.
-emptyQuery = Select {rslt = QRecord [], tabs = [], cond = [BBool False]}
+emptyQuery = Select {rslt = [], tabs = [], cond = [BBool False]}
 
 -- | The exact number of nodes in a SQL query.
 sizeQueryExact :: Query -> Integer
 sizeQueryExact (q@(Select _ _ _)) =
-    sizeQueryExact (rslt q) + (sum $ map sizeQueryExactB (cond q))
-sizeQueryExact (QRecord fields) = sum [sizeQueryExactB b | (a, b) <- fields]
+    sum [sizeQueryExactB b | (a, b) <- rslt q] +
+    sum (map sizeQueryExactB (cond q))
 sizeQueryExact (QUnion m n) = sizeQueryExact m + sizeQueryExact n
 
 sizeQueryExactB (BNum n) = 1
@@ -102,8 +103,8 @@ sizeQuery :: Query -> Unary
 sizeQuery q = loop q
   where loop :: Query -> Unary
         loop (q@(Select _ _ _)) =
-            S (sum (map sizeQueryB (cond q)) + loop (rslt q))
-        loop (QRecord fields) = sum (map sizeQueryB (map snd fields))
+            S (sum (map sizeQueryB (cond q)) +
+               sum (map sizeQueryB (map snd (rslt q))))
         loop (QUnion a b) = S (loop a + loop b)
 
 sizeQueryB :: QBase -> Unary
@@ -117,27 +118,24 @@ sizeQueryB (BExists q) = S (sizeQuery q)
 -- Basic functions on query expressions --------------------------------
 
 freevarsQuery (q@(Select _ _ _)) = 
-    (freevarsQuery (rslt q))
+    (concatMap (freevarsQueryB . snd)  (rslt q))
     `u`
     (nub $ concat $ map freevarsQueryB (cond q))
-freevarsQuery (QRecord fields) = concatMap (freevarsQueryB . snd) fields
 freevarsQuery _ = []
 
 freevarsQueryB (BOp lhs op rhs) = nub (freevarsQueryB lhs ++ freevarsQueryB rhs)
 freevarsQueryB _ = []
-
-isQRecord (QRecord _) = True
-isQRecord _ = False
 
 -- | A ground query is one without variables or appl'ns.
 -- This is a precondition of representating a real SQL query.
 groundQuery :: Query -> Bool
 groundQuery (qry@(Select _ _ _)) =
     all groundQueryExprB (cond qry) &&
-    groundQueryExpr (rslt qry) &&
-    isQRecord (rslt qry)
+    groundQueryRow (rslt qry)
 groundQuery (QUnion a b) = groundQuery a && groundQuery b
-groundQuery (QRecord fields) = all (groundQueryB . snd) fields
+
+groundQueryRow :: Row -> Bool
+groundQueryRow r = and [groundQueryB expr | (_name, expr) <- r]
 
 groundQueryB (BExists qry) = groundQuery qry
 groundQueryB (BOp b1 _ b2) = groundQueryB b1 && groundQueryB b2
@@ -150,7 +148,6 @@ groundQueryB (BNot a) = groundQueryB a
 groundQueryExpr :: Query -> Bool
 groundQueryExpr (qry@(Select _ _ _)) = False
 groundQueryExpr (QUnion a b) = False
-groundQueryExpr (QRecord fields) = all (groundQueryExprB . snd) fields
 
 groundQueryExprB (BExists qry) = groundQuery qry
 groundQueryExprB (BOp b1 _ b2) = groundQueryExprB b1 && groundQueryExprB b2
@@ -171,7 +168,7 @@ serialize q@(Select _ _ _) =
 serialize (QUnion l r) =
     "(" ++ serialize l ++ ") union (" ++ serialize r ++ ")"
 
-serializeRow (QRecord flds) =
+serializeRow (flds) =
     mapstrcat ", " (\(x, expr) -> serializeAtom expr ++ " as " ++ x) flds
 
 serializeAtom (BNum i) = show i

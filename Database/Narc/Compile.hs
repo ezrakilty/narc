@@ -192,9 +192,9 @@ translateZ (If b z (Nil, _), _) =
     let q@(Select _ _ _) = translateZ z in
     Select {rslt=rslt q, tabs = tabs q, cond = translateB b : cond q}
 translateZ (Singleton (Record fields, _), _) = 
-    Select {rslt = QRecord(alistmap translateB fields), tabs = [], cond = []}
+    Select {rslt = alistmap translateB fields, tabs = [], cond = []}
 translateZ (Table tabname fTys, _) =
-    Select {rslt = QRecord[(l,BField tabname l)| (l,_ty) <- fTys],
+    Select {rslt = [(l,BField tabname l) | (l,_ty) <- fTys],
             tabs = [(tabname, tabname, TRecord fTys)], cond = []}
 translateZ z = error$ "translateZ got unexpected term: " ++ (pretty.fst) z
 

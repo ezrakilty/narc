@@ -5,7 +5,7 @@ import Database.Narc.SQL
 import Database.Narc.Util (mapstrcat)
 
 instance Pretty Query where
-  pretty (Select{rslt=QRecord flds, tabs=tabs, cond=cond}) = 
+  pretty (Select{rslt=flds, tabs=tabs, cond=cond}) = 
          "select " ++ mapstrcat ", " (\(alias, expr) -> 
                                           pretty expr ++ " as " ++ alias)
                       flds ++ 
@@ -15,10 +15,6 @@ instance Pretty Query where
          " where " ++ pretty_cond cond
                    where pretty_cond [] = "true"
                          pretty_cond cond = mapstrcat " and " pretty cond
-  pretty (QRecord fields) = "{"++ mapstrcat ", "
-                               (\(lbl,expr) -> 
-                                    lbl ++ "=" ++ show expr) fields
-                          ++ "}"
 
   pretty (QUnion a b) = pretty a ++ " union all " ++ pretty b
 
