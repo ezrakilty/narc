@@ -12,6 +12,8 @@ import Database.Narc.AST
 import Database.Narc.Type
 import Database.Narc.Failure
 import Database.Narc.Debug (debug)
+import Database.Narc.Pretty
+import Database.Narc.AST.Pretty
 
 --
 -- Type inference ------------------------------------------------------
@@ -29,7 +31,7 @@ tyCheckTerms env terms =
 -- an entry (x, qty) indicates that variable x has the quantified type qty;
 -- a QType (ys, ty) indicates the type "forall ys, ty".
 tyCheck :: TyEnv -> Term a
-        -> ErrorGensym (TySubst, Term Type)
+        -> ErrorGensym (TySubst, TypedTerm)
 tyCheck env (Unit, _) = 
     do let ty = (TUnit)
        return (emptyTySubst, (Unit, ty))
@@ -110,7 +112,7 @@ tyCheck env (Project m f, _) =
                   Just fieldTy ->
                       return (tySubst,
                               (Project m' f, fieldTy))
-         _ -> fail("Project from non-record type.")
+         _ -> fail ("Project from non-record type: " ++ pretty (Project m f))
 tyCheck env (App m n, _) = 
     do a <- lift gensym; b <- lift gensym;
        (mTySubst, m'@(_, (mTy))) <- tyCheck env m
@@ -132,29 +134,25 @@ tyCheck env (App m n, _) =
 
 tyCheck env term@(Comp x src body, d) =
     do (substSrc, src') <- tyCheck env src
-       let srcTy = typeAnno src'
+       let srcTy = annotation src'
        a <- lift gensym
        srcTySubst <- under $ unify (TList (TVar a)) srcTy
        let srcTy' = applyTySubst srcTySubst (TVar a)
        (substBody, body') <- tyCheck ((x, unquantType srcTy') : env) body
-       let bodyTy = typeAnno body'
+       let bodyTy = annotation body'
        resultSubst <- under $ composeTySubst [substSrc, substBody]
        return (resultSubst, (Comp x src' body', bodyTy))
 
 unquantType ty = ([], ty)
 
-typeAnno :: Term Type -> Type
-typeAnno (_, ty) = ty
-
-makeInitialTyEnv :: ErrorGensym [(String, QType)]
-makeInitialTyEnv = return []
+annotation :: TypedTerm -> Type
+annotation (_, ty) = ty
 
 infer :: Term a -> ErrorGensym TypedTerm -- FIXME broken, discards subst'n
 infer term =
-    do initialTyEnv <- makeInitialTyEnv
-       (_, term') <-
+    do (_, term') <-
         --    runErrorGensym $ 
-               tyCheck initialTyEnv term
+               tyCheck [] term
        return term'
 
 infer' :: Term' a -> ErrorGensym TypedTerm
@@ -162,10 +160,15 @@ infer' term = infer (term, undefined)
 
 runInfer = runErrorGensym . infer
 
-runTyCheck env m = runErrorGensym $ 
-    do initialTyEnv <- makeInitialTyEnv
-       (subst, m') <- tyCheck (initialTyEnv++env) m
+typeAnnotate env m =
+    do (subst, m') <- tyCheck env m
        return $ retagulate (applyTySubst subst . snd) m'
+
+runTyCheck :: [(VarName, QType)] -> Term a -> TypedTerm
+runTyCheck env m = runErrorGensym $ typeAnnotate env m
+
+tryTyCheck :: [(VarName, QType)] -> Term a -> Either String TypedTerm
+tryTyCheck env m = tryErrorGensym $ typeAnnotate env m
 
 inferTys :: Term () -> ErrorGensym Type
 inferTys m = 

@@ -14,12 +14,12 @@ bind x v env = (x,v):env
 
 -- type RuntimeTerm = Term (Maybe Query)
 
-type Env = [(Var, Value)]
+type Env = [(VarName, Value)]
 
 data Value = VUnit | VBool Bool | VNum Integer | VString String
             | VList [Value]
             | VRecord [(String, Value)]
-            | VAbs Var TypedTerm Env
+            | VAbs VarName TypedTerm Env
         deriving (Eq, Show)
 
 -- | Inject a data value back into a literal term that denotes it.

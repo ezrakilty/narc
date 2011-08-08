@@ -31,10 +31,12 @@ isSuccess (Right _) = True
 type ErrorGensym a = ErrorT String Gensym a
 
 -- | Run an ErrorGensym action, raising errors with `error'.
+runErrorGensym :: ErrorT String Gensym a -> a
 runErrorGensym = runError . runGensym . runErrorT
 
 -- | Try running an ErrorGensym action, packaging result in an Either
 -- | with Left as failure, Right as success.
+tryErrorGensym :: ErrorT e Gensym a -> Either e a
 tryErrorGensym = runGensym . runErrorT
 
 under x = either throwError return x

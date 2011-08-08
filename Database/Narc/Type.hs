@@ -28,7 +28,7 @@ type QType = ([TyVar], Type)
 
 type TySubst = [(Int, Type)]
 
-type TyEnv = [(Var, QType)]
+type TyEnv = [(VarName, QType)]
 
 -- Operations on types, rows and substitutions ------------------------
 

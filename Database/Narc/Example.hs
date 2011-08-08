@@ -30,6 +30,24 @@ example4 =
     having (primApp "=" [cnst "Joe", project emp "name"]) $
       result [("nom", project emp "name")]
 
+example5 =
+    let employees =
+            table "employees" [ ("salary",    TNum)
+                              , ("name",      TString)
+                              , ("startdate", TNum)
+                              ]
+    in let query =
+            foreach employees $ \emp ->
+            having (primApp "<" [cnst (20000 :: Integer), project emp "salary"]) $
+            singleton (record [ ("name", project emp "name"),
+                                ("startdate", project emp "startdate") ])
+
+    in let query2 =
+            foreach query $ \emp ->
+            having (primApp "<" [project emp "startdate", cnst (1998 :: Integer)]) $
+            singleton (record [("name", project emp "name")])
+    in query2
+
 -- Unit tests ----------------------------------------------------------
 
 test_example =
@@ -41,7 +59,11 @@ test_example =
         ~?= "(select _0.a as a from foo as _0, bar as _1 where _0.a < _1.a) union (select _1.a as a from foo as _0, bar as _1 where not(_0.a < _1.a))"
         ,
         narcToSQLString example3
-        ~?= "select _0.name as nom from employees as _0 where 20000 < _0.salary",
+        ~?= "select _0.name as nom from employees as _0 where 20000 < _0.salary"
+        ,
         narcToSQLString example4
         ~?= "select _0.name as nom from employees as _0 where \"Joe\" = _0.name"
+        ,
+        narcToSQLString example5
+        ~?= "select _0.name as name from employees as _0 where 20000 < _0.salary and _0.startdate < 1998"
     ]

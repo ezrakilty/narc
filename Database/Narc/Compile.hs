@@ -8,7 +8,6 @@ import Data.List ((\\))
 import Database.Narc.AST
 import Database.Narc.AST.Pretty ()
 import Database.Narc.Contract
-import Database.Narc.Debug (forceAndReport)
 import Database.Narc.Pretty
 import qualified Database.Narc.SQL as SQL
 import Database.Narc.Type as Type
@@ -53,10 +52,13 @@ normTerm env (App l m, t) =
     let w = normTerm env m in
     case normTerm env l of 
       (Abs x n, _) -> 
-          forceAndReport (
-            let !n' = substTerm x w n in
-            normTerm env (runTyCheck env $ n')
-          ) ("susbtituting "++show w++" for "++x++" in "++show n)
+          let n' = substTerm x w n in
+          case tryTyCheck env $ n' of
+            Right term' -> normTerm env (term')
+            Left msg -> error ("Error " ++ msg ++
+                               " substituting " ++ pretty w ++ 
+                               " for " ++ x ++ " in " ++ pretty n)
+
       (If b l1 l2, _) ->
           (normTerm env (If b (App l1 w, t) (App l2 w, t), t))
       v@(Var _, _) -> (App v w, t)
@@ -108,10 +110,12 @@ normTerm env (Comp x src body, t) =
     case normTerm env src of
       (Nil, _) -> (Nil, t)
       (Singleton src', _) -> 
-          forceAndReport (
-            let !n' = substTerm x src' body in
-            normTerm env (runTyCheck env n')
-          ) ("Substituting " ++ show src' ++ " for " ++ x ++ " in " ++ show body)
+          let body' = substTerm x src' body in
+          case tryTyCheck env body' of
+            Right body'' -> normTerm env body''
+            Left msg -> error ("Error " ++ msg ++
+                               "\nWhile substituting " ++ pretty src' ++ 
+                               "\nfor " ++ x ++ "\nin " ++ pretty body)
       (Comp y src2 body2, _) ->
           -- Freshen @y@ over @src@ with respect to @body@ (that of
           -- the outer comprehension), because we're widening the
@@ -127,7 +131,7 @@ normTerm env (Comp x src body, t) =
            (normTerm env (Comp x srcR body, t)), t)
       (tbl @ (Table _tableName fieldTys, _)) ->
           insert (\(v',t') -> (Comp x tbl (v',t'), t')) $
-                 let env' = Type.bind x ([],TList(TRecord fieldTys)) env in 
+                 let env' = Type.bind x ([],TRecord fieldTys) env in 
                  normTerm env' body
       (If cond' src' (Nil, _), _) ->
           assert (x `notElem` fvs cond') $
@@ -157,7 +161,7 @@ insertFurther k ((v,t) :: TypedTerm) =
       _ -> k (v,t)
 
 -- See (Bird 2010) for a better algorithm here.
-minFreeFor :: Term a -> Var
+minFreeFor :: Term a -> VarName
 minFreeFor n = head $ variables \\ fvs n 
 
 -- | @translateTerm@ homomorphically translates a normal-form Term to an

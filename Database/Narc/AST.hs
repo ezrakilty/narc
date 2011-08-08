@@ -3,7 +3,7 @@
 module Database.Narc.AST (
   Term'(..),
   Term,
-  Var,
+  VarName,
   PlainTerm,
   TypedTerm,
   fvs,
@@ -30,13 +30,13 @@ import Database.Narc.Var
 -- | with named variables)
 data Term' a = Unit | Bool Bool | Num Integer | String String
              | PrimApp String [Term a]
-             | Var Var | Abs Var (Term a) | App (Term a) (Term a)
+             | Var VarName | Abs VarName (Term a) | App (Term a) (Term a)
              | Table Tabname [(Field, Type)]
              | If (Term a) (Term a) (Term a)
              | Singleton (Term a) | Nil | Union (Term a) (Term a)
              | Record [(String, Term a)]
              | Project (Term a) String
-             | Comp Var (Term a) (Term a)
+             | Comp VarName (Term a) (Term a)
 --           | IsEmpty (Term a)
     deriving (Eq,Show)
 
@@ -96,8 +96,9 @@ rename x y (Nil, q) = (Nil, q)
 rename x y (Union a b, q) = (Union (rename x y a) (rename x y b), q)
 
 -- | substTerm x v m: substite v for x in term m
--- (Actually incorrect because it does not make substitutions in the q.)
-substTerm :: Var -> Term t -> Term t -> Term t
+-- (Actually incorrect because it does not make substitutions in the
+-- annotation.)
+substTerm :: VarName -> Term t -> Term t -> Term t
 substTerm x v (m@(Unit, _))       = m
 substTerm x v (m@(Bool b, _))     = m
 substTerm x v (m@(Num n, _))      = m
@@ -260,8 +261,8 @@ class NarcSem result where
     num :: Integer -> result
     string :: String -> result
     primApp :: String -> [result] -> result
-    var :: Var -> result
-    abs :: Var -> result -> result
+    var :: VarName -> result
+    abs :: VarName -> result -> result
     app :: result -> result -> result
     table :: Tabname -> [(Field, Type)] -> result
     ifthenelse :: result -> result -> result -> result
@@ -270,7 +271,7 @@ class NarcSem result where
     union :: result -> result -> result
     record :: [(String, result)] -> result
     project :: result -> String -> result
-    foreach :: result -> Var -> result -> result
+    foreach :: result -> VarName -> result -> result
 --    cnst :: Constable t => t -> result
 class Constable t where cnst :: NarcSem result => t -> result
 instance Constable Bool where cnst b = bool b

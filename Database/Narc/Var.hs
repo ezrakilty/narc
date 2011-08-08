@@ -1,4 +1,4 @@
 module Database.Narc.Var where
 
-type Var = String
+type VarName = String
 
