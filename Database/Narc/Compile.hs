@@ -194,18 +194,18 @@ translateZ (If b z (Nil, _), _) =
 translateZ (Singleton (Record fields, _), _) = 
     Select {rslt = QRecord(alistmap translateB fields), tabs = [], cond = []}
 translateZ (Table tabname fTys, _) =
-    Select {rslt = QRecord[(l,QField tabname l)| (l,_ty) <- fTys],
+    Select {rslt = QRecord[(l,BField tabname l)| (l,_ty) <- fTys],
             tabs = [(tabname, tabname, TRecord fTys)], cond = []}
 translateZ z = error$ "translateZ got unexpected term: " ++ (pretty.fst) z
 
-translateB :: Term b -> Query
-translateB (If b b' b'', _)            = QIf (translateB b)
+translateB :: Term b -> QBase
+translateB (If b b' b'', _)            = BIf (translateB b)
                                            (translateB b') (translateB b'') 
-translateB (Bool n, _)                 = (QBool n)
-translateB (Num n, _)                  = (QNum n)
-translateB (Project (Var x, _) l, _)   = QField x l
-translateB (PrimApp "not" [arg], _)    = QNot (translateB arg)
-translateB (PrimApp "<" [l, r], _)     = QOp (translateB l) Less (translateB r)
+translateB (Bool n, _)                 = (BBool n)
+translateB (Num n, _)                  = (BNum n)
+translateB (Project (Var x, _) l, _)   = BField x l
+translateB (PrimApp "not" [arg], _)    = BNot (translateB arg)
+translateB (PrimApp "<" [l, r], _)     = BOp (translateB l) Less (translateB r)
 translateB b = error$ "translateB got unexpected term: " ++ (pretty.fst) b
 
 compile :: TyEnv -> TypedTerm -> Query
