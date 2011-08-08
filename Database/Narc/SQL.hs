@@ -73,12 +73,12 @@ sizeQuery q = loop q
         loop (QUnion a b) = S (loop a + loop b)
 
 sizeQueryB :: QBase -> Unary
-sizeQueryB (BNum i) = 1
-sizeQueryB (BBool b) = 1
-sizeQueryB (BNot q) = S (sizeQueryB q)
+sizeQueryB (BNum i)     = 1
+sizeQueryB (BBool b)    = 1
+sizeQueryB (BNot q)     = S (sizeQueryB q)
 sizeQueryB (BOp a op b) = S (sizeQueryB a + sizeQueryB b)
 sizeQueryB (BField t f) = 1
-sizeQueryB (BExists q) = S (sizeQuery q)
+sizeQueryB (BExists q)  = S (sizeQuery q)
 
 -- Basic functions on query expressions --------------------------------
 
@@ -90,6 +90,7 @@ freevarsQuery _ = []
 
 freevarsQueryB (BOp lhs op rhs) =
     nub (freevarsQueryB lhs ++ freevarsQueryB rhs)
+freevarsQueryB (BNot arg) = freevarsQueryB arg
 freevarsQueryB _ = []
 
 -- | Serialize a @Query@ to its ASCII SQL serialization.
@@ -123,7 +124,7 @@ serializeAtom (BExists q) =
 
 serializeOp Eq = "="
 serializeOp Less = "<"
-serializeOp Plus = "<"
-serializeOp Minus = "<"
-serializeOp Times = "<"
-serializeOp Divide = "<"
+serializeOp Plus = "+"
+serializeOp Minus = "-"
+serializeOp Times = "*"
+serializeOp Divide = "/"
