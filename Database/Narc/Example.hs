@@ -22,7 +22,7 @@ example3' =
     let t = table "employees" [("name", TString), ("salary", TNum)] in
     foreach t $ \emp ->
     having (primApp "<" [cnst (20000::Integer), project emp "salary"]) $
-      singleton (record [("nom", project emp "name")])
+      result [("nom", project emp "name")]
 
 -- Unit tests ----------------------------------------------------------
 

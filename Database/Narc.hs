@@ -19,7 +19,7 @@ module Database.Narc (
   SQL.serialize,
   -- * The language itself
   unit, table, cnst, primApp, abs, app, ifthenelse, singleton,
-  nil, union, record, project, foreach, having,
+  nil, union, record, project, foreach, having, result,
   Type(..)
 ) where
 
@@ -168,3 +168,12 @@ foreach src k = do
 -- argument. Corresponds to a @where@ clause in a SQL query.
 having :: NarcTerm -> NarcTerm -> NarcTerm
 having cond body = ifthenelse cond body nil
+
+-- | A shortcut for giving the typical bottom of a ``FLWOR-style''
+-- comprehension:
+--
+-- > foreach t $ \row ->
+-- > having (project x "a" > 2) $ 
+-- > result [("result", project x "b")]
+result :: [(String, NarcTerm)] -> NarcTerm
+result x = singleton $ record x
