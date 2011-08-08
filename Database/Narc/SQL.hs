@@ -8,6 +8,8 @@ import Database.Narc.Common
 import Database.Narc.Type
 import Database.Narc.Util (u, mapstrcat)
 
+import Unary
+
 -- | The representation of SQL queries (e.g. @select R from Ts where B@)
 
 -- (This is unpleasant; it should probably be organized into various
@@ -59,43 +61,6 @@ sizeQueryExactB (BNot q) = 1 + sizeQueryExactB q
 sizeQueryExactB (BOp a op b) = 1 + sizeQueryExactB a + sizeQueryExactB b
 sizeQueryExactB (BField t f) = 1
 sizeQueryExactB (BExists q) = 1 + sizeQueryExact q
-
-data Unary = Z | S Unary
-    deriving (Eq, Show)
-
-instance Num Unary where
-    Z     + y = y
-    x     + Z = x
-    (S x) + y = S (x `rightPlus` y)
-
-    abs x = x
-    signum Z = Z
-    signum (S x) = S Z
-    fromInteger x | 0 == x = Z
-                  | 0 <= x = S (fromInteger (x-1))
-                  | otherwise = error "unary represents positive integers only"
-
-    -- | Multiplication. Discouraged because slow.
-    Z * y = Z
-    x * Z = Z
-    (S x) * y = y + (x * y)
-
-instance Ord Unary where
-    min Z y = Z
-    min x Z = Z
-    min (S x) (S y) = S (min x y)
-
--- | right-recursive version of (+), to balance the recursion.
-rightPlus :: Unary -> Unary -> Unary
-rightPlus Z     y = y
-rightPlus x     Z = x
-rightPlus x (S y) = S (x + y)
-
-uToIntMax :: Unary -> Integer -> Integer
-uToIntMax x max = loop x max 0
-    where loop Z max result = result
-          loop (S z) max result | result < max  = loop z max (result+1)
-                                | result >= max = result
 
 -- | @sizeQuery@ approximates the size of a query by calling giving up
 -- | its node count past a certain limit (currently limit = 100, below).
