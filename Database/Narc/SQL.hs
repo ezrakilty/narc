@@ -88,38 +88,9 @@ freevarsQuery (q@(Select _ _ _)) =
     (nub $ concat $ map freevarsQueryB (cond q))
 freevarsQuery _ = []
 
-freevarsQueryB (BOp lhs op rhs) = nub (freevarsQueryB lhs ++ freevarsQueryB rhs)
+freevarsQueryB (BOp lhs op rhs) =
+    nub (freevarsQueryB lhs ++ freevarsQueryB rhs)
 freevarsQueryB _ = []
-
--- | A ground query is one without variables or appl'ns.
--- This is a precondition of representating a real SQL query.
-groundQuery :: Query -> Bool
-groundQuery (qry@(Select _ _ _)) =
-    all groundQueryExprB (cond qry) &&
-    groundQueryRow (rslt qry)
-groundQuery (QUnion a b) = groundQuery a && groundQuery b
-
-groundQueryRow :: Row -> Bool
-groundQueryRow r = and [groundQueryB expr | (_name, expr) <- r]
-
-groundQueryB (BExists qry) = groundQuery qry
-groundQueryB (BOp b1 _ b2) = groundQueryB b1 && groundQueryB b2
-groundQueryB (BNum _) = True
-groundQueryB (BBool _) = True
-groundQueryB (BField _ _) = True
-groundQueryB (BNot a) = groundQueryB a
-
--- | A ground query ``expression'' is a ground query of row type.
-groundQueryExpr :: Query -> Bool
-groundQueryExpr (qry@(Select _ _ _)) = False
-groundQueryExpr (QUnion a b) = False
-
-groundQueryExprB (BExists qry) = groundQuery qry
-groundQueryExprB (BOp b1 _ b2) = groundQueryExprB b1 && groundQueryExprB b2
-groundQueryExprB (BNot a) = groundQueryExprB a
-groundQueryExprB (BNum _) = True
-groundQueryExprB (BBool _) = True
-groundQueryExprB (BField _ _) = True
 
 -- | Serialize a @Query@ to its ASCII SQL serialization.
 -- Dies on those @Query@s that don't represent valid SQL queries.

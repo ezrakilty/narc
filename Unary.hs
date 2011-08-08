@@ -24,6 +24,9 @@ instance Ord Unary where
     min Z y = Z
     min x Z = Z
     min (S x) (S y) = S (min x y)
+    Z < Z = False
+    Z < S y = True
+    S x < S y = x < y
 
 -- | right-recursive version of (+), to balance the recursion.
 rightPlus :: Unary -> Unary -> Unary

@@ -34,7 +34,7 @@ makeNormalizerTests =
                                            [("f0", (Num 3, ()))], ()), ()), 
                                ()), ()) in
                   let tyTerm = runErrorGensym $ infer $ term in
-                  SQL.groundQuery $ compile initialTyEnv $ tyTerm
+                  1 < (SQL.sizeQuery $ compile initialTyEnv $ tyTerm)
                  ]
 
 unitTests :: ErrorGensym Test
