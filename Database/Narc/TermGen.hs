@@ -39,7 +39,7 @@ typeGen tyEnv size =
         ]
 
 -- | Generate a random term, unlikely to be well-typed.
-termGen :: [Var] -> Int -> Gen (Term ())
+termGen :: [VarName] -> Int -> Gen (Term ())
 termGen fvs size = frequency $
     [(1,                    return (Unit, ())),
      (1, do b <- arbitrary; return (Bool b, ())),

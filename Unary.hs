@@ -1,7 +1,7 @@
 module Unary where
 
 data Unary = Z | S Unary
-    deriving (Eq, Show)
+    deriving (Eq)
 
 instance Num Unary where
     Z     + y = y
@@ -13,12 +13,14 @@ instance Num Unary where
     signum (S x) = S Z
     fromInteger x | 0 == x = Z
                   | 0 <= x = S (fromInteger (x-1))
-                  | otherwise = error "unary represents positive integers only"
+                  | otherwise = unaryUnderflow
 
     -- | Multiplication. Discouraged because slow.
     Z * y = Z
     x * Z = Z
     (S x) * y = y + (x * y)
+
+unaryUnderflow = error "unary represents positive integers only"
 
 instance Ord Unary where
     min Z y = Z
@@ -28,7 +30,28 @@ instance Ord Unary where
     Z < S y = True
     S x < S y = x < y
 
--- | right-recursive version of (+), to balance the recursion.
+instance Show Unary where
+    show x = show (toInteger x)
+
+instance Enum Unary where
+    succ x = S x
+    pred (S x) = x
+    pred Z = error "No pred of Z"
+    toEnum x | 0 <= x = foldr (const S) Z [1..x]
+             | x < 0 = unaryUnderflow
+    fromEnum Z = 0
+    fromEnum (S x) = 1 + fromEnum x
+
+instance Real Unary where
+    toRational x = error "toRational undefined"
+
+instance Integral Unary where
+    toInteger Z = 0
+    toInteger (S x) = 1 + toInteger x
+    quotRem x y = let (q,r) = (quotRem (toInteger x) (toInteger y)) in
+                  (fromInteger q, fromInteger r)
+
+-- | Right-recursive version of (+), to balance the recursion.
 rightPlus :: Unary -> Unary -> Unary
 rightPlus Z     y = y
 rightPlus x     Z = x
