@@ -1,4 +1,12 @@
-module Unary where
+-- | Lazy natural numbers, represented using unary.
+--
+-- These numbers can be used when you want to start counting
+-- something, but not necessarily finish; for example, you want to
+-- know whether you have more than a hundred things, but you could
+-- have a billion. By counting them lazily into Unary, you can
+-- apply (min 100) and you'll stop when you hit this threshold.
+
+module Numeric.Unary where
 
 data Unary = Z | S Unary
     deriving (Eq)

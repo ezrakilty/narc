@@ -8,9 +8,9 @@ import Control.Monad.Error ({- Error(..), throwError, -} runErrorT)
 import Test.QuickCheck hiding (promote, Failure)
 import Test.HUnit hiding (State, assert)
 
-import Unary
 import Gensym
 import QCUtils
+import Numeric.Unary
 
 import Database.Narc.AST
 import Database.Narc.Compile
@@ -34,7 +34,7 @@ normalizerTests =
                                  [("f0", (Num 3, ()))], ()), ()), 
                      ()), ()) in
         let typedTerm = runErrorGensym $ infer $ term in
-        (1::Unary) < (SQL.sizeQuery $ compile [] $ typedTerm)
+        (1::Integer) < (SQL.sizeQuery $ compile [] $ typedTerm)
     ]
 
 unitTests :: Test

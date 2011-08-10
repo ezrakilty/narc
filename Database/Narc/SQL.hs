@@ -8,7 +8,7 @@ import Database.Narc.Common
 import Database.Narc.Type
 import Database.Narc.Util (u, mapstrcat)
 
-import Unary
+import Numeric.Unary
 
 -- | The representation of SQL queries (e.g. @select R from Ts where B@)
 

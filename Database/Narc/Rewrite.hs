@@ -6,14 +6,12 @@ import Database.Narc.AST
 import Database.Narc.Type
 import Database.Narc.Util (alistmap)
 
--- Rewrite -------------------------------------------------------------
---
--- Small-step version of compilation: local rewrite rules applied
--- willy-nilly.
-
+-- | In @perhaps f x@, use @f@ to transform @x@, unless it declines by
+-- returning @Nothing@, in which case return @x@ unchanged.
 perhaps :: (a -> Maybe a) -> a -> a
 perhaps f x = fromMaybe x (f x)
 
+-- | Apply @f@ to each subterm of a given term, in a bottom-up fashion.
 bu :: (Term a -> Maybe (Term a)) -> Term a -> Term a
 bu f (Unit, d) = perhaps f (Unit, d)
 bu f (Bool b, d) = perhaps f (Bool b, d)
@@ -34,6 +32,8 @@ bu f (PrimApp fun args, d) = perhaps f (PrimApp fun args, d)
 bu f (Nil, d) = perhaps f (Nil, d)
 bu f (Union a b, d) = perhaps f (Union a b, d)
 
+-- | Small-step version of compilation: local rewrite rules applied
+-- willy-nilly. (Incomplete?)
 rw (Comp x (Singleton m, _) n, t) = Just (substTerm x m n)
 rw (App (Abs x n, st) m, t) = Just (substTerm x m n)
 rw (Project (Record fields, rect) fld, t) = lookup fld fields
