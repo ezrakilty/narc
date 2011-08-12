@@ -41,7 +41,7 @@ data DataItem = Num Integer
   deriving (Eq, Show)
 
 -- | Binary operators used in queries.
-data Op = Eq | Less
+data Op = Eq | NonEq | Less | LessOrEq | Greater | GreaterOrEq
         | Plus | Minus | Times | Divide
         deriving(Eq, Show)
 
@@ -117,7 +117,11 @@ serializeLit (Bool b) = show b
 serializeLit (String s) = show s
 
 serializeOp Eq = "="
+serializeOp NonEq = "<>"
 serializeOp Less = "<"
+serializeOp Greater = ">"
+serializeOp LessOrEq = "<="
+serializeOp GreaterOrEq = ">="
 serializeOp Plus = "+"
 serializeOp Minus = "-"
 serializeOp Times = "*"

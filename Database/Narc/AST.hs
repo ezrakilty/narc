@@ -14,7 +14,8 @@ module Database.Narc.AST (
   variables,
   (!),
   unit_, Const, cnst_, primApp_, var_, abs_, app_, table_, ifthenelse_,
-  singleton_, nil_, union_, record_, project_, foreach_ 
+  singleton_, nil_, union_, record_, project_, foreach_,
+  module Database.Narc.Common
 ) where
 
 import Data.List as List ((\\), nub)
