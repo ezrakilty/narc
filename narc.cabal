@@ -69,7 +69,7 @@ Library
   Build-depends: base >=4 && < 5, HUnit, QuickCheck, mtl, random, HDBC
   
   -- Modules not exported by this package.
-  Other-modules:       Algebras, Gensym, QCUtils, Numeric.Unary, Database.Narc.TermGen, Database.Narc.Var, Database.Narc.Contract, Database.Narc.Debug, Database.Narc.TypeInfer, Database.Narc.Util, Database.Narc.AST.Pretty, Database.Narc.Failure.QuickCheck, Database.Narc.Rewrite, Database.Narc.AST, Database.Narc.Common, Database.Narc.Compile, Database.Narc.Eval, Database.Narc.Failure, Database.Narc.Pretty, Database.Narc.SQL.Pretty, Database.Narc.SQL
+  Other-modules:       Algebras, Gensym, QCUtils, Numeric.Unary, Database.Narc.TermGen, Database.Narc.Var, Database.Narc.Contract, Database.Narc.Debug, Database.Narc.Embed, Database.Narc.TypeInfer, Database.Narc.Util, Database.Narc.AST.Pretty, Database.Narc.Failure.QuickCheck, Database.Narc.Rewrite, Database.Narc.AST, Database.Narc.Common, Database.Narc.Compile, Database.Narc.Eval, Database.Narc.Failure, Database.Narc.Pretty, Database.Narc.SQL.Pretty, Database.Narc.SQL
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
