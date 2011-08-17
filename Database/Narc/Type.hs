@@ -8,7 +8,7 @@ import Gensym
 import QCUtils
 
 import Data.List ((\\))
-import Control.Monad.State (State(..), get, put, evalState) -- TBD: use Gensym monad instead
+import Control.Monad.State (State, get, put, evalState) -- TBD: use Gensym monad instead
 import Control.Applicative ((<$>))
 import Database.Narc.Failure (Failure, fayl)
 import Database.Narc.Failure.QuickCheck
@@ -32,20 +32,25 @@ type TyEnv = [(VarName, QType)]
 
 -- Operations on types, rows and substitutions ------------------------
 
+isBaseTy :: Type -> Bool
 isBaseTy TBool = True
 isBaseTy TNum  = True
 isBaseTy TString  = True
 isBaseTy _     = False
 
+isTyVar :: Type -> Bool
 isTyVar (TVar _) = True
 isTyVar _        = False
 
+isDBRecordTy :: Type -> Bool
 isDBRecordTy (TRecord fields) = all (isBaseTy . snd) fields
 isDBRecordTy _                = False
 
-isRecordTy (TRecord fields) = True
-isRecordTy _                = False
+isRecordTy :: Type -> Bool
+isRecordTy (TRecord _) = True
+isRecordTy _           = False
 
+isDBTableTy :: Type -> Bool
 isDBTableTy (TList ty) = isDBRecordTy ty
 isDBTableTy _          = False
 
@@ -53,49 +58,54 @@ emptyTySubst :: (TySubst)
 emptyTySubst = ([])
 
 -- | ftvs: free type variables
+ftvs :: Type -> [TyVar]
 ftvs TBool = []
 ftvs TNum = []
 ftvs TString = []
 ftvs TUnit = []
 ftvs (TList t) = ftvs t
 ftvs (TArr s t) = ftvs s ++ ftvs t
-ftvs (TRecord fields) = concat [ftvs t | (lbl, t) <- fields]
+ftvs (TRecord fields) = concat [ftvs fieldType | (_label, fieldType) <- fields]
 ftvs (TVar a) = [a]
 
+numFtvs :: Type -> Int
 numFtvs = length . ftvs
 
 -- | ftvsSubst: the free type variables of a type substitution--that is,
 -- the type variables free in the types in the range of the substitution.
+ftvsSubst :: [(TyVar, Type)] -> [TyVar]
 ftvsSubst a = concatMap ftvs $ rng a
 
 -- | occurs x ty: does variable x appear in type ty? (Note there are no
 -- type-variable binders).
-occurs x (TVar y) | x == y    = True
-                  | otherwise = False
-occurs x (TArr s t) = x `occurs` s || x `occurs` t
-occurs x (TList t) = x `occurs` t
-occurs x (TRecord t) = any (occurs x) (map snd t)
-occurs x (TUnit) = False
-occurs x (TBool) = False
-occurs x (TNum) = False
-occurs x (TString) = False
+occurs :: TyVar -> Type -> Bool
+occurs  x (TVar y) | x == y    = True
+                   | otherwise = False
+occurs  x (TArr s t) = x `occurs` s || x `occurs` t
+occurs  x (TList t) = x `occurs` t
+occurs  x (TRecord t) = any (occurs x) (map snd t)
+occurs _x (TUnit) = False
+occurs _x (TBool) = False
+occurs _x (TNum) = False
+occurs _x (TString) = False
 
 applyTySubst :: TySubst -> Type -> Type
-applyTySubst subst (TUnit) = TUnit
-applyTySubst subst (TBool) = TBool
-applyTySubst subst (TNum) = TNum
-applyTySubst subst (TString) = TString
-applyTySubst subst (TVar a) = case lookup a subst of
-                              Nothing -> TVar a
-                              Just ty -> ty
-applyTySubst subst (TArr a b) =
+applyTySubst _subst (TUnit) = TUnit
+applyTySubst _subst (TBool) = TBool
+applyTySubst _subst (TNum) = TNum
+applyTySubst _subst (TString) = TString
+applyTySubst  subst (TVar a) = case lookup a subst of
+                               Nothing -> TVar a
+                               Just ty -> ty
+applyTySubst  subst (TArr a b) =
     TArr (applyTySubst subst a) (applyTySubst subst b)
-applyTySubst subst (TList a) = TList (applyTySubst subst a)
-applyTySubst subst (TRecord a) = TRecord (alistmap (applyTySubst subst) a)
+applyTySubst  subst (TList a) = TList (applyTySubst subst a)
+applyTySubst  subst (TRecord a) = TRecord (alistmap (applyTySubst subst) a)
 
 
 -- Type operations -----------------------------------------------------
 
+instantiate :: QType -> Gensym Type
 instantiate (qs, ty) =
     do subst <- sequence [do y <- gensym ; return (q, TVar y) | q <- qs]
        return $ applyTySubst subst ty
@@ -121,11 +131,12 @@ normalizeType (TArr s t) =
        t' <- normalizeType t
        return $ TArr s' t'
 
+runNormalizeType :: Type -> Type
 runNormalizeType ty = evalState (normalizeType ty) (0, [])
 
--- instanceOf: is there a substitution that turns ty2 into ty1? Useful in tests
+-- | Is there a substitution that turns ty2 into ty1? Useful in tests
 instanceOf :: Type -> Type -> Failure ()
-instanceOf ty1 (TVar x) = return ()
+instanceOf _ty1 (TVar _x) = return ()
 instanceOf TBool TBool = return ()
 instanceOf TNum TNum = return ()
 instanceOf TString TString = return ()
@@ -137,10 +148,10 @@ instanceOf (TRecord a) (TRecord b) =
     let a' = sortAlist a 
         b' = sortAlist b
     in
-      do result <- sequence [if ax == bx then instanceOf ay by else fayl "Record mismatch"
-                             | ((ax, ay), (bx, by)) <- zip a' b']
+      do _ <- sequence [if ax == bx then instanceOf ay by else fayl "Record mismatch"
+                        | ((ax, ay), (bx, by)) <- zip a' b']
          return ()
-instanceOf a b = fayl ""
+instanceOf _ty1 _ty2 = fayl ""
 
 unify :: Type -> Type -> Failure (TySubst)
 unify s t | s == t = return ([])
@@ -177,7 +188,7 @@ unify a b = fayl("Type mismatch between " ++
 
 unifyAll :: [Type] -> Failure TySubst
 unifyAll [] = return ([])
-unifyAll [x] = return ([])
+unifyAll [_] = return ([])
 unifyAll (x1:x2:xs) = do (tySubst) <- x1 `unify` x2
                          unifyAll (map (applyTySubst tySubst)
                                    (x2:xs))
@@ -242,4 +253,5 @@ prop_unify_apply_subst =
 
 -- { Typing environments } ---------------------------------------------
 
+bind :: VarName -> QType -> TyEnv -> TyEnv
 bind x v env = (x,v):env
