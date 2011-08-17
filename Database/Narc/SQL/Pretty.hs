@@ -10,13 +10,15 @@ instance Pretty Query where
                                           pretty expr ++ " as " ++ alias)
                       flds ++ 
          (if null tabs then "" else
-         " from " ++ mapstrcat ", " (\(name, al, ty) -> name ++ " as " ++ al) 
+         " from " ++ mapstrcat ", " (\(name, alias, _ty) -> name ++ " as " ++ alias) 
                          tabs) ++ 
-         " where " ++ pretty_cond cond
-                   where pretty_cond [] = "true"
-                         pretty_cond cond = mapstrcat " and " pretty cond
+         " where " ++ pretty_conds cond
 
   pretty (Union a b) = pretty a ++ " union all " ++ pretty b
+
+pretty_conds :: Pretty a => [a] -> String
+pretty_conds [] = "true"
+pretty_conds cond = mapstrcat " and " pretty cond
 
 instance Pretty QBase where
   pretty (Lit lit) = pretty lit
@@ -44,4 +46,8 @@ instance Pretty Op where
   pretty Times  = " * "
   pretty Divide = " / "
   pretty Eq     = " = "
+  pretty NonEq  = " <> "
   pretty Less   = " < "
+  pretty Greater= " > "
+  pretty LessOrEq   = " <= "
+  pretty GreaterOrEq= " >= "

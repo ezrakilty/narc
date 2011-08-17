@@ -4,7 +4,7 @@
 -- | Query SQL databases using Nested Relational Calculus embedded in
 -- Haskell.
 -- 
--- The primed functions in this module are in fact the syntactic 
+-- Many of the functions in this module are in fact the syntactic 
 -- forms of the embedded language. Use them as, for example:
 -- 
 -- > let employeesSchema = [("name", TString), ("salary", TNum)] in
@@ -67,6 +67,7 @@ typeCheckAndCompile = compile [] . runTyCheck []
 
 -- Example query
 
+example_dull :: Term ()
 example_dull = (Comp "x" (Table "foo" [("a", TBool)], ())
                 (If (Project (Var "x", ()) "a", ())
                  (Singleton (Var "x", ()), ())

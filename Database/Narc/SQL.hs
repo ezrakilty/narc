@@ -2,13 +2,11 @@
 
 module Database.Narc.SQL where
 
-import Data.List (nub, intercalate)
-
 import Database.Narc.Common
 import Database.Narc.Type
-import Database.Narc.Util (u, mapstrcat)
+import Database.Narc.Util (mapstrcat)
 
-import Numeric.Unary
+import Numeric.Unary()
 
 -- | The representation of SQL queries (e.g. @select R from Ts where B@)
 
@@ -50,6 +48,7 @@ data UnOp = Min | Max | Count | Sum | Average
         deriving (Eq, Show)
 
 -- | The trivial query, returning no rows.
+emptyQuery :: Query
 emptyQuery = Select {rslt = [], tabs = [], cond = [Lit (Bool False)]}
 
 -- | @sizeQuery@ returns the number of nodes in a query. It's
@@ -66,23 +65,12 @@ sizeQuery (Union a b) = 1 + (sizeQuery a + sizeQuery b)
 sizeQueryB :: Num a => QBase -> a
 sizeQueryB (Lit _)     = 1
 sizeQueryB (Not q)     = 1 + (sizeQueryB q)
-sizeQueryB (Op a op b) = 1 + (sizeQueryB a + sizeQueryB b)
+sizeQueryB (Op a _ b)  = 1 + (sizeQueryB a + sizeQueryB b)
 sizeQueryB (If c a b)  = 1 + (sizeQueryB c + sizeQueryB a + sizeQueryB b)
-sizeQueryB (Field t f) = 1
+sizeQueryB (Field _ _) = 1
 sizeQueryB (Exists q)  = 1 + (sizeQuery q)
 
 -- Basic functions on query expressions --------------------------------
-
-freevarsQuery (q@(Select _ _ _)) = 
-    (concatMap (freevarsQueryB . snd)  (rslt q))
-    `u`
-    (nub $ concat $ map freevarsQueryB (cond q))
-freevarsQuery _ = []
-
-freevarsQueryB (Op lhs op rhs) =
-    nub (freevarsQueryB lhs ++ freevarsQueryB rhs)
-freevarsQueryB (Not arg) = freevarsQueryB arg
-freevarsQueryB _ = []
 
 -- | Serialize a @Query@ to its ASCII SQL serialization.
 -- Dies on those @Query@s that don't represent valid SQL queries.
@@ -96,9 +84,11 @@ serialize q@(Select _ _ _) =
 serialize (Union l r) =
     "(" ++ serialize l ++ ") union (" ++ serialize r ++ ")"
 
+serializeRow :: [(String, QBase)] -> String
 serializeRow (flds) =
     mapstrcat ", " (\(x, expr) -> serializeAtom expr ++ " as " ++ x) flds
 
+serializeAtom :: QBase -> String
 serializeAtom (Lit lit) = serializeLit lit
 serializeAtom (Not expr) = "not(" ++ serializeAtom expr ++ ")"
 serializeAtom (Op l op r) = 
@@ -112,17 +102,18 @@ serializeAtom (If cond l r) =
 serializeAtom (Exists q) =
     "exists (" ++ serialize q ++ ")"
 
+serializeLit :: DataItem -> String
 serializeLit (Num i) = show i
 serializeLit (Bool b) = show b
 serializeLit (String s) = show s
 
-serializeOp Eq = "="
-serializeOp NonEq = "<>"
-serializeOp Less = "<"
-serializeOp Greater = ">"
-serializeOp LessOrEq = "<="
+serializeOp Eq          = "="
+serializeOp NonEq       = "<>"
+serializeOp Less        = "<"
+serializeOp Greater     = ">"
+serializeOp LessOrEq    = "<="
 serializeOp GreaterOrEq = ">="
-serializeOp Plus = "+"
-serializeOp Minus = "-"
-serializeOp Times = "*"
-serializeOp Divide = "/"
+serializeOp Plus        = "+"
+serializeOp Minus       = "-"
+serializeOp Times       = "*"
+serializeOp Divide      = "/"
