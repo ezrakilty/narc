@@ -3,18 +3,16 @@
 module Database.Narc.Test where
 
 import Prelude hiding (catch)
-import Control.Monad.Error ({- Error(..), throwError, -} runErrorT)
 
-import Test.QuickCheck hiding (promote, Failure)
+import Test.QuickCheck hiding (promote, Failure, Success)
 import Test.HUnit hiding (State, assert)
 
-import Gensym
 import QCUtils
 import Numeric.Unary
 
 import Database.Narc.AST
 import Database.Narc.Compile
-import Database.Narc.Failure
+import Database.Narc.Fallible
 import qualified Database.Narc.SQL as SQL
 import Database.Narc.Type as Type
 import Database.Narc.TypeInfer
@@ -33,7 +31,7 @@ normalizerTests =
                      (Singleton (Record 
                                  [("f0", (Num 3, ()))], ()), ()), 
                      ()), ()) in
-        let typedTerm = runErrorGensym $ infer $ term in
+        let typedTerm = runFallibleGensym $ infer $ term in
         (1::Integer) < (SQL.sizeQuery $ compile [] $ typedTerm)
     ]
 
@@ -52,10 +50,10 @@ prop_compile_safe :: Property
 prop_compile_safe = 
     forAll dbTableTypeGen $ \ty ->
     forAll (sized (closedTypedTermGen ty)) $ \m ->
-    case tryErrorGensym (infer m) of
-      Left _ -> label "ill-typed" $ property True -- ignore ill-typed terms
-                                                  -- but report their occurence.
-      Right (m'@(_, ty)) -> 
+    case tryFallibleGensym (infer m) of
+      Failure _ -> label "ill-typed" $ property True -- ignore ill-typed terms
+                                                     -- but report their occurence.
+      Success (m'@(_, ty)) -> 
           classify (isDBTableTy ty) "Flat relation type" $
             let q = (compile [] $! m') in
             collect (min 100 (SQL.sizeQuery q::Unary)) $  -- NB: Counts sizes only up to ~100.
@@ -68,9 +66,9 @@ prop_typedTermGen_tyCheck :: Property
 prop_typedTermGen_tyCheck =
   forAll (sized $ typeGen []) $ \ty ->
   forAll (sized $ typedTermGen [] ty) $ \m ->
-  case runGensym $ runErrorT $ infer m of
-    Left _ -> False
-    Right (_m', ty') -> isErrorMSuccess $ unify ty ty'
+  case tryFallibleGensym $ infer m of
+    Failure _ -> False
+    Success (_m', ty') -> isSuccess $ unify ty ty'
 
 -- Main ----------------------------------------------------------------
 

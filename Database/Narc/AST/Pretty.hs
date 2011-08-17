@@ -23,7 +23,7 @@ instance Pretty (Term' a) where
       " else " ++ pretty b ++ " )"
   pretty (Singleton m) = "[" ++ pretty m ++ "]" 
   pretty (Nil) = "[]"
-  pretty (Union m n) = "(" ++ pretty n ++ " ++ " ++ pretty n ++ ")"
+  pretty (Union m n) = "(" ++ pretty m ++ " ++ " ++ pretty n ++ ")"
   pretty (Record fields) = 
       "{" ++ mapstrcat "," (\(l,m) -> l ++ "=" ++ pretty m) fields ++ "}"
   pretty (Project m l) = "(" ++ pretty m ++ "." ++ l ++ ")"
@@ -31,4 +31,4 @@ instance Pretty (Term' a) where
       "(for (" ++ x ++ " <- " ++ pretty m ++ ") " ++ pretty n ++ ")"
 
 instance Pretty (Term a) where
-  pretty (m, t) = pretty m
+  pretty (m, _anno) = pretty m

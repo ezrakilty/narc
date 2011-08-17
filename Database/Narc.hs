@@ -46,7 +46,7 @@ import Database.Narc.Common
 import Database.Narc.Compile
 import Database.Narc.Debug
 import Database.Narc.Eval
-import Database.Narc.Failure
+import Database.Narc.Fallible
 import Database.Narc.Pretty
 import Database.Narc.AST.Pretty
 import Database.Narc.SQL.Pretty

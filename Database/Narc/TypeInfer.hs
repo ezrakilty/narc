@@ -1,7 +1,6 @@
 module Database.Narc.TypeInfer where
 
 import Data.Maybe (fromMaybe)
-import Data.Either
 
 import Control.Monad.State (lift)
 
@@ -10,41 +9,41 @@ import Test.HUnit
 import Gensym
 import Database.Narc.AST
 import Database.Narc.Type
-import Database.Narc.Failure
+import Database.Narc.Fallible
 import Database.Narc.Debug (debug)
 import Database.Narc.Pretty
-import Database.Narc.AST.Pretty
+import Database.Narc.AST.Pretty()
 
 --
 -- Type inference ------------------------------------------------------
 --
 
+tyCheckTerms :: TyEnv -> [Term a] -> FallibleGensym (TySubst, [TypedTerm])
 tyCheckTerms env terms = 
     do results <- sequence [tyCheck env term | term <- terms]
-       let (tySubsts, terms') = unzip results
-       let (terms'', termTys) = unzip terms'
+       let (tySubsts, typedTerms) = unzip results
        tySubst <- under $ composeTySubst tySubsts
-       return (tySubst, terms')
+       return (tySubst, typedTerms)
 
 -- | tyCheck env term infers a type for term in environment env.
 -- The environment has type [(Var, QType)];
 -- an entry (x, qty) indicates that variable x has the quantified type qty;
 -- a QType (ys, ty) indicates the type "forall ys, ty".
 tyCheck :: TyEnv -> Term a
-        -> ErrorGensym (TySubst, TypedTerm)
-tyCheck env (Unit, _) = 
+        -> FallibleGensym (TySubst, TypedTerm)
+tyCheck _env (Unit, _) = 
     do let ty = (TUnit)
        return (emptyTySubst, (Unit, ty))
-tyCheck env (Bool b, _) = 
+tyCheck _env (Bool b, _) = 
     do let ty = (TBool)
        return (emptyTySubst, (Bool b, ty))
-tyCheck env (Num n, _) = 
+tyCheck _env (Num n, _) = 
     do let ty = (TNum)
        return (emptyTySubst, (Num n, ty))
-tyCheck env (String s, _) = 
+tyCheck _env (String s, _) = 
     do let ty = (TString)
        return (emptyTySubst, (String s, ty))
-tyCheck env (Table t tys, _) =
+tyCheck _env (Table t tys, _) =
     do let ty = (TList (TRecord tys))
        return (emptyTySubst, (Table t tys, ty))
 tyCheck env (Var x, _) =
@@ -54,8 +53,8 @@ tyCheck env (Var x, _) =
        debug ("*** instantiated " ++ show qTy ++ " to " ++ show ty) $
         return (emptyTySubst, (Var x, (ty)))
 tyCheck env (PrimApp fun args, _) = 
-    do (tySubst, args) <- tyCheckTerms env args
-       return(tySubst, (PrimApp fun args, (TBool))) -- TBD
+    do (tySubst, args') <- tyCheckTerms env args
+       return(tySubst, (PrimApp fun args', TBool)) -- TBD
 tyCheck env (Abs x n, _) = 
     do argTyVar <- lift gensym
        (tySubst, n'@(_, (nTy))) <- 
@@ -75,7 +74,7 @@ tyCheck env (If c a b, _) =
        let ty = applyTySubst tySubst bTy
        return (tySubst,
                (If c' a' b', (ty)))
-tyCheck env (Nil, _) = 
+tyCheck _env (Nil, _) = 
     do t <- lift gensym
        return (emptyTySubst, (Nil, (TList (TVar t))))
 tyCheck env (Singleton m, _) =
@@ -93,13 +92,13 @@ tyCheck env (Union a b, _) =
                (Union a' b', (ty)))
 tyCheck env (Record fields, _) =
     let (fieldNames, terms) = unzip fields in
-    do (tySubst, terms) <- tyCheckTerms env terms
-       let fieldTys = map snd terms
+    do (tySubst, terms') <- tyCheckTerms env terms
+       let fieldTys = map snd terms'
        return (tySubst,
-               (Record (zip fieldNames terms),
-                (TRecord [(name,ty)| (ty, name) <- zip fieldTys fieldNames])))
+               (Record (zip fieldNames terms'),
+                (TRecord [(name, ty)| (ty, name) <- zip fieldTys fieldNames])))
 tyCheck env (Project m f, _) =
-    do rowVar <- lift gensym; a <- lift gensym
+    do a <- lift gensym
        (tySubst, m'@(_, mTy)) <- tyCheck env m
        case mTy of
          TVar x ->     -- Note: bogus
@@ -114,7 +113,7 @@ tyCheck env (Project m f, _) =
                               (Project m' f, fieldTy))
          _ -> fail ("Project from non-record type: " ++ pretty (Project m f))
 tyCheck env (App m n, _) = 
-    do a <- lift gensym; b <- lift gensym;
+    do b <- lift gensym;
        (mTySubst, m'@(_, (mTy))) <- tyCheck env m
        (nTySubst, n'@(_, (nTy))) <- tyCheck env n
        let nTy' = applyTySubst mTySubst $ nTy
@@ -132,7 +131,7 @@ tyCheck env (App m n, _) =
        return (tySubst,
                (App m' n', (resultTy)))
 
-tyCheck env term@(Comp x src body, d) =
+tyCheck env (Comp x src body, _) =
     do (substSrc, src') <- tyCheck env src
        let srcTy = annotation src'
        a <- lift gensym
@@ -143,58 +142,64 @@ tyCheck env term@(Comp x src body, d) =
        resultSubst <- under $ composeTySubst [substSrc, substBody]
        return (resultSubst, (Comp x src' body', bodyTy))
 
+unquantType :: Type -> QType
 unquantType ty = ([], ty)
 
 annotation :: TypedTerm -> Type
 annotation (_, ty) = ty
 
-infer :: Term a -> ErrorGensym TypedTerm -- FIXME broken, discards subst'n
+infer :: Term a -> FallibleGensym TypedTerm -- FIXME broken, discards subst'n
 infer term =
     do (_, term') <-
-        --    runErrorGensym $ 
+        --    runFallibleGensym $ 
                tyCheck [] term
        return term'
 
-infer' :: Term' a -> ErrorGensym TypedTerm
+infer' :: Term' a -> FallibleGensym TypedTerm
 infer' term = infer (term, undefined)
 
-runInfer = runErrorGensym . infer
+runInfer :: Term a -> TypedTerm
+runInfer = runFallibleGensym . infer
 
+typeAnnotate :: TyEnv -> Term a -> FallibleGensym (Term Type)
 typeAnnotate env m =
     do (subst, m') <- tyCheck env m
        return $ retagulate (applyTySubst subst . snd) m'
 
 runTyCheck :: [(VarName, QType)] -> Term a -> TypedTerm
-runTyCheck env m = runErrorGensym $ typeAnnotate env m
+runTyCheck env m = runFallibleGensym $ typeAnnotate env m
 
-tryTyCheck :: [(VarName, QType)] -> Term a -> Either String TypedTerm
-tryTyCheck env m = tryErrorGensym $ typeAnnotate env m
+tryTyCheck :: [(VarName, QType)] -> Term a -> Fallible TypedTerm
+tryTyCheck env m = tryFallibleGensym $ typeAnnotate env m
 
-inferTys :: Term () -> ErrorGensym Type
+inferTys :: Term () -> FallibleGensym Type
 inferTys m = 
     do (_, (ty)) <- infer m
        return (ty)
 
-inferType :: Term () -> ErrorGensym Type
+inferType :: Term () -> FallibleGensym Type
 inferType m = infer m >>= (return . snd)
 
-runInferType = runErrorGensym . inferType
+runInferType :: Term () -> Type
+runInferType = runFallibleGensym . inferType
 
-inferType' :: Term' () -> ErrorGensym Type
+inferType' :: Term' () -> FallibleGensym Type
 inferType' m = infer' m >>= (return . snd)
 
 -- UNIT TESTS ----------------------------------------------------------
 
+unitAssert :: Bool -> Assertion
 unitAssert b = assertEqual "." b True
 
+tyCheckTests :: Test
 tyCheckTests =
     TestList ["Simple application of id to table" ~:
-                     (runErrorGensym $ 
+                     (runFallibleGensym $ 
                        inferTys (App (Abs "x" (Var "x", ()), ())
                               (Table "wine" [], ()), ()))
                        ~?= (TList (TRecord [])),
               "Curried application of id to table" ~:
-                     (runErrorGensym . inferTys)
+                     (runFallibleGensym . inferTys)
                      (App (App
                               (Abs "x" (Abs "y" (App (Var "x", ())
                                                      (Var "y", ()), ()), ()), ())
@@ -202,7 +207,7 @@ tyCheckTests =
                                  (Table "wine" [], ()), ())
                        ~?= (TList (TRecord [])),
               "Curried application, de/reconstructing record" ~:
-                     (runErrorGensym . inferTys) 
+                     (runFallibleGensym . inferTys) 
                      (App (App
                       (Abs "f" (Abs "x" (App (Var "f",()) (Var "x",()),()),()),())
                       (Abs "x"
@@ -213,19 +218,20 @@ tyCheckTests =
                       ~?= (TRecord[("baz", TNum)]),
               "omega" ~:
                     unitAssert $ isError $
-                      (tryErrorGensym . inferType)
+                      (tryFallibleGensym . inferType)
                       (Abs "x" (App (Var "x", ()) (Var "x", ()), ()), ())
                   ]
 
+typingTest1 :: (Type, TySubst, Bool)
 typingTest1 = 
   let idTy = (TArr (TVar 9) (TVar 9)) in
   let concatMapTy = (TArr (TArr (TVar 2) (TList (TVar 3)))
                      (TArr (TList (TVar 2))
                                (TList (TVar 3)))) in
-  let Right mArrSubst = unify concatMapTy  (TArr (TVar 4) (TVar 5)) in
+  let Success mArrSubst = unify concatMapTy  (TArr (TVar 4) (TVar 5)) in
   let argTy = applyTySubst mArrSubst (TVar 4) in
              -- TArr (TVar 2) ([],Just 0) (TList (TVar 3))
-  let Right funcArgSubst = unify argTy idTy in
+  let Success funcArgSubst = unify argTy idTy in
   let resultTy = (applyTySubst funcArgSubst $ applyTySubst mArrSubst (TVar 5)) 
   in
   (resultTy, funcArgSubst,
@@ -234,5 +240,6 @@ typingTest1 =
    _ -> False    -- unexpected form of result!
   )
 
+typingTest :: Test
 typingTest = let (_,_,x) = typingTest1 in 
              TestCase (unitAssert x)

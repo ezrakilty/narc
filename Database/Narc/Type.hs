@@ -10,7 +10,7 @@ import QCUtils
 import Data.List ((\\))
 import Control.Monad.State (State, get, put, evalState) -- TBD: use Gensym monad instead
 import Control.Applicative ((<$>))
-import Database.Narc.Failure (Failure, fayl)
+import Database.Narc.Fallible
 import Database.Narc.Failure.QuickCheck
 import Database.Narc.Util (dom, rng, image, alistmap, sortAlist, onCorresponding,
                      disjointAlist, validEnv, eqUpTo)
@@ -135,7 +135,7 @@ runNormalizeType :: Type -> Type
 runNormalizeType ty = evalState (normalizeType ty) (0, [])
 
 -- | Is there a substitution that turns ty2 into ty1? Useful in tests
-instanceOf :: Type -> Type -> Failure ()
+instanceOf :: Type -> Type -> Fallible ()
 instanceOf _ty1 (TVar _x) = return ()
 instanceOf TBool TBool = return ()
 instanceOf TNum TNum = return ()
@@ -148,18 +148,18 @@ instanceOf (TRecord a) (TRecord b) =
     let a' = sortAlist a 
         b' = sortAlist b
     in
-      do _ <- sequence [if ax == bx then instanceOf ay by else fayl "Record mismatch"
+      do _ <- sequence [if ax == bx then instanceOf ay by else fail "Record mismatch"
                         | ((ax, ay), (bx, by)) <- zip a' b']
          return ()
-instanceOf _ty1 _ty2 = fayl ""
+instanceOf _ty1 _ty2 = fail ""
 
-unify :: Type -> Type -> Failure (TySubst)
+unify :: Type -> Type -> Fallible (TySubst)
 unify s t | s == t = return ([])
 unify (TVar x) t | not (x `occurs` t) = return ([(x, t)])
-                 | otherwise = fayl("Occurs check failed on " ++ 
+                 | otherwise = fail("Occurs check failed on " ++ 
                                     show (TVar x) ++ " and " ++ show t)
 unify t (TVar x) | not (x `occurs` t) = return ([(x, t)])
-                 | otherwise = fayl("Occurs check failed on " ++ 
+                 | otherwise = fail("Occurs check failed on " ++ 
                                     show t ++ " and " ++ show (TVar x))
 unify TBool TBool = return ([])
 unify TNum TNum = return ([])
@@ -176,24 +176,24 @@ unify (TRecord a) (TRecord b) =
     in
       do substs <- sequence
                 [if ax == bx then unify ay by else
-                     fayl ("Record types " ++ show a' ++ 
+                     fail ("Record types " ++ show a' ++ 
                            " and " ++ show b' ++ 
                            " mismatched.")
                  | ((ax, ay), (bx, by)) <- zip a' b']
          let (tySubsts) = substs
          subst <- composeTySubst tySubsts
          return (subst)
-unify a b = fayl("Type mismatch between " ++ 
+unify a b = fail("Type mismatch between " ++ 
                  show a ++ " and " ++ show b)
 
-unifyAll :: [Type] -> Failure TySubst
+unifyAll :: [Type] -> Fallible TySubst
 unifyAll [] = return ([])
 unifyAll [_] = return ([])
 unifyAll (x1:x2:xs) = do (tySubst) <- x1 `unify` x2
                          unifyAll (map (applyTySubst tySubst)
                                    (x2:xs))
 
-composeTySubst :: [TySubst] -> Failure TySubst
+composeTySubst :: [TySubst] -> Fallible TySubst
 composeTySubst [] = return $ ([])
 composeTySubst subst =
     let (tySubsts) = subst in
@@ -204,7 +204,7 @@ composeTySubst subst =
        let tySubst = flip foldr1 substs'
                  (\s1 s2 -> s1 ++ alistmap (applyTySubst s1) s2)
        if any (\(a,b) -> occurs a b) tySubst then 
-          fayl "Circular type substitution in composeTySubst" 
+          fail "Circular type substitution in composeTySubst" 
         else 
             return (tySubst)
 
@@ -215,7 +215,7 @@ prop_composeTySubst =
     disjointAlist a b && validEnv a && validEnv b ==>
     (do ab <- composeTySubst[a, b]
         return $ applyTySubst ab ty)
-    == (return $ (applyTySubst a $ applyTySubst b ty) :: Failure Type)
+    == (return $ (applyTySubst a $ applyTySubst b ty) :: Fallible Type)
 
 -- unused
 disjoinSubst :: TySubst -> TySubst -> TySubst

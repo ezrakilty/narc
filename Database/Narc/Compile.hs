@@ -8,6 +8,7 @@ import Data.List ((\\))
 import Database.Narc.AST
 import Database.Narc.AST.Pretty ()
 import Database.Narc.Contract
+import Database.Narc.Fallible
 import Database.Narc.Pretty
 import qualified Database.Narc.SQL as SQL
 import Database.Narc.Type as Type
@@ -54,8 +55,8 @@ normTerm env (App l m, t) =
       (Abs x n, _) -> 
           let n' = substTerm x w n in
           case tryTyCheck env $ n' of
-            Right term' -> normTerm env (term')
-            Left msg -> error ("Error " ++ msg ++
+            Success term' -> normTerm env (term')
+            Failure msg   -> error ("Error " ++ msg ++
                                " substituting " ++ pretty w ++ 
                                " for " ++ x ++ " in " ++ pretty n)
 
@@ -112,10 +113,10 @@ normTerm env (Comp x src body, t) =
       (Singleton src', _) -> 
           let body' = substTerm x src' body in
           case tryTyCheck env body' of
-            Right body'' -> normTerm env body''
-            Left msg -> error ("Error " ++ msg ++
-                               "\nWhile substituting " ++ pretty src' ++ 
-                               "\nfor " ++ x ++ "\nin " ++ pretty body)
+            Success body'' -> normTerm env body''
+            Failure msg -> error ("Error " ++ msg ++
+                                  "\nWhile substituting " ++ pretty src' ++ 
+                                  "\nfor " ++ x ++ "\nin " ++ pretty body)
       (Comp y src2 body2, _) ->
           -- Freshen @y@ over @src@ with respect to @body@ (that of
           -- the outer comprehension), because we're widening the

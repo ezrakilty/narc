@@ -1,17 +1,17 @@
 module Database.Narc.Failure.QuickCheck where
 
-import Test.QuickCheck
+import Test.QuickCheck hiding (Success, Failure)
 
 import QCUtils
-import Database.Narc.Failure
+import Database.Narc.Fallible
 
 -- QuickCheck property utilities ---------------------------------------
 
-failureToProperty :: Test.QuickCheck.Testable a => Failure a -> Property
-failureToProperty (Left _) = failProp
-failureToProperty (Right x) = property x
+failureToProperty :: Test.QuickCheck.Testable a => Fallible a -> Property
+failureToProperty (Failure _) = failProp
+failureToProperty (Success x) = property x
 
 failureToPropertyIgnoreFailure :: Test.QuickCheck.Testable a => 
-                                  Failure a -> Property
-failureToPropertyIgnoreFailure (Left _) = ignore
-failureToPropertyIgnoreFailure (Right x) = property x
+                                  Fallible a -> Property
+failureToPropertyIgnoreFailure (Failure _) = ignore
+failureToPropertyIgnoreFailure (Success x) = property x
