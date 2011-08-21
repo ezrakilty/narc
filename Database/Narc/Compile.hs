@@ -210,23 +210,28 @@ translateZ z = error$ "translateZ got unexpected term: " ++ (pretty.fst) z
 
 translateB :: Term b -> SQL.QBase
 translateB (If b b' b'', _)            = SQL.If (translateB b)
-                                           (translateB b') (translateB b'') 
+                                           (translateB b')
+                                           (translateB b'') 
 translateB (Bool n, _)                 = (SQL.Lit (SQL.Bool n))
 translateB (Num n, _)                  = (SQL.Lit (SQL.Num n))
 translateB (String s, _)               = (SQL.Lit (SQL.String s))
 translateB (Project (Var x, _) l, _)   = SQL.Field x l
 translateB (PrimApp "not" [arg], _)    = SQL.Not (translateB arg)
-translateB (PrimApp "<" [l, r], _)   = SQL.Op (translateB l) SQL.Less (translateB r)
-translateB (PrimApp ">" [l, r], _)   = SQL.Op (translateB l) SQL.Greater (translateB r)
-translateB (PrimApp "<=" [l, r], _)  = SQL.Op (translateB l) SQL.LessOrEq (translateB r)
-translateB (PrimApp ">=" [l, r], _)  = SQL.Op (translateB l) SQL.GreaterOrEq (translateB r)
-translateB (PrimApp "=" [l, r], _)   = SQL.Op (translateB l) SQL.Eq (translateB r)
-translateB (PrimApp "<>" [l, r], _)  = SQL.Op (translateB l) SQL.NonEq (translateB r)
-translateB (PrimApp "+" [l, r], _)   = SQL.Op (translateB l) SQL.Plus (translateB r)
-translateB (PrimApp "-" [l, r], _)   = SQL.Op (translateB l) SQL.Minus (translateB r)
-translateB (PrimApp "*" [l, r], _)   = SQL.Op (translateB l) SQL.Times (translateB r)
-translateB (PrimApp "/" [l, r], _)   = SQL.Op (translateB l) SQL.Divide (translateB r)
+translateB (PrimApp str [l, r], _)     = SQL.Op (translateB l) (translatePrimOp str) (translateB r)
 translateB b = error$ "translateB got unexpected term: " ++ (pretty.fst) b
+
+translatePrimOp :: String -> SQL.Op
+translatePrimOp ("<")   = SQL.Less
+translatePrimOp (">")   = SQL.Greater
+translatePrimOp ("<=")  = SQL.LessOrEq
+translatePrimOp (">=")  = SQL.GreaterOrEq
+translatePrimOp ("=")   = SQL.Eq
+translatePrimOp ("<>")  = SQL.NonEq
+translatePrimOp ("+")   = SQL.Plus
+translatePrimOp ("-")   = SQL.Minus
+translatePrimOp ("*")   = SQL.Times
+translatePrimOp ("/")   = SQL.Divide
+translatePrimOp str = error$ "unknown primitive function call: " ++ str
 
 compile :: TyEnv -> TypedTerm -> SQL.Query
 compile env = translateTerm . normTerm env
