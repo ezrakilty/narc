@@ -28,7 +28,7 @@ data QBase =
       Lit DataItem
     | Not QBase
     | Op QBase Op QBase
-    | Field String String
+    | Field Tabname Field
     | If QBase QBase QBase
     | Exists Query
       deriving (Eq, Show)

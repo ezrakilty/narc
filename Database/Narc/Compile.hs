@@ -145,6 +145,7 @@ normTerm env (Comp x src body, t) =
 -- Insertion functions for rebuilding a term, dropping a
 -- reconstructor k down through unions and compr'ns (there must be
 -- a better way!).
+
 insert :: (TypedTerm -> TypedTerm) -> TypedTerm -> TypedTerm
 insert k ((v,t) :: TypedTerm) =
     case v of
@@ -185,8 +186,9 @@ translateF :: Term b -> SQL.Query
 translateF (Comp x (Table tabname fTys, _) n, _) =
     let q@(SQL.Select _ _ _) = translateF n in
     SQL.Select {SQL.rslt = SQL.rslt q,
-               SQL.tabs = (tabname, x, TRecord fTys):SQL.tabs q,
-               SQL.cond = SQL.cond q}
+                SQL.tabs = (tabname, x, TRecord fTys):SQL.tabs q,
+                SQL.cond = SQL.cond q
+               }
 translateF (z@(If _ _ (Nil, _), _))                             = translateZ z
 translateF (z@(Singleton (Record _, _), _))                     = translateZ z
 translateF (z@(Table _ _, _))                                   = translateZ z
@@ -195,17 +197,20 @@ translateF (z, _) = error $ "translateF for unexpected term: " ++ pretty z
 translateZ :: Term b -> SQL.Query
 translateZ (If b z (Nil, _), _) =
     let q@(SQL.Select _ _ _) = translateZ z in
-    SQL.Select {SQL.rslt=SQL.rslt q,
-                   SQL.tabs = SQL.tabs q,
-                SQL.cond = translateB b : SQL.cond q}
+    SQL.Select {SQL.rslt = SQL.rslt q,
+                SQL.tabs = SQL.tabs q,
+                SQL.cond = translateB b : SQL.cond q
+               }
 translateZ (Singleton (Record fields, _), _) = 
     SQL.Select {SQL.rslt = alistmap translateB fields,
                 SQL.tabs = [],
-                SQL.cond = []}
-translateZ (Table tabname fTys, _) =
-    SQL.Select {SQL.rslt = [(l,SQL.Field tabname l) | (l,_ty) <- fTys],
-                SQL.tabs = [(tabname, tabname, TRecord fTys)],
-                SQL.cond = []}
+                SQL.cond = []
+               }
+translateZ (Table tableName fTys, _) =
+    SQL.Select {SQL.rslt = [(l, SQL.Field tableName l) | (l, _ty) <- fTys],
+                SQL.tabs = [(tableName, tableName, TRecord fTys)],
+                SQL.cond = []
+               }
 translateZ (z, _) = error $ "translateZ got unexpected term: " ++ pretty z
 
 translateB :: Term b -> SQL.QBase
@@ -232,7 +237,7 @@ translatePrimOp ("+")   = SQL.Plus
 translatePrimOp ("-")   = SQL.Minus
 translatePrimOp ("*")   = SQL.Times
 translatePrimOp ("/")   = SQL.Divide
-translatePrimOp str = error$ "unknown primitive function call: " ++ str
+translatePrimOp str = error $ "unknown primitive function call: " ++ str
 
 compile :: TyEnv -> TypedTerm -> SQL.Query
 compile env = translateTerm . normTerm env
