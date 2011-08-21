@@ -174,8 +174,8 @@ translateTerm (f@(Comp _ (Table _ _, _) _, _))                  = translateF f
 translateTerm (f@(If _ _ (Nil, _), _))                          = translateF f
 translateTerm (f@(Singleton (Record _, _), _))                  = translateF f
 translateTerm (f@(Table _ _, _))                                = translateF f
-translateTerm x = 
-    error $ "translateTerm got unexpected term: " ++ (pretty.fst) x
+translateTerm (v, _) = 
+    error $ "translateTerm got unexpected term: " ++ pretty v
 
 -- translateF, translateZ and translateB are named after the syntactic
 -- classes (in the grammar of the normalized form) which they handle.
@@ -190,7 +190,7 @@ translateF (Comp x (Table tabname fTys, _) n, _) =
 translateF (z@(If _ _ (Nil, _), _))                             = translateZ z
 translateF (z@(Singleton (Record _, _), _))                     = translateZ z
 translateF (z@(Table _ _, _))                                   = translateZ z
-translateF m = error $ "translateF for unexpected term: " ++ pretty (fst m)
+translateF (z, _) = error $ "translateF for unexpected term: " ++ pretty z
 
 translateZ :: Term b -> SQL.Query
 translateZ (If b z (Nil, _), _) =
@@ -206,7 +206,7 @@ translateZ (Table tabname fTys, _) =
     SQL.Select {SQL.rslt = [(l,SQL.Field tabname l) | (l,_ty) <- fTys],
                 SQL.tabs = [(tabname, tabname, TRecord fTys)],
                 SQL.cond = []}
-translateZ z = error$ "translateZ got unexpected term: " ++ (pretty.fst) z
+translateZ (z, _) = error $ "translateZ got unexpected term: " ++ pretty z
 
 translateB :: Term b -> SQL.QBase
 translateB (If b b' b'', _)            = SQL.If (translateB b)
@@ -217,8 +217,9 @@ translateB (Num n, _)                  = (SQL.Lit (SQL.Num n))
 translateB (String s, _)               = (SQL.Lit (SQL.String s))
 translateB (Project (Var x, _) l, _)   = SQL.Field x l
 translateB (PrimApp "not" [arg], _)    = SQL.Not (translateB arg)
-translateB (PrimApp str [l, r], _)     = SQL.Op (translateB l) (translatePrimOp str) (translateB r)
-translateB b = error$ "translateB got unexpected term: " ++ (pretty.fst) b
+translateB (PrimApp str [l, r], _)     =
+    SQL.Op (translateB l) (translatePrimOp str) (translateB r)
+translateB (b, _) = error $ "translateB got unexpected term: " ++ pretty b
 
 translatePrimOp :: String -> SQL.Op
 translatePrimOp ("<")   = SQL.Less
