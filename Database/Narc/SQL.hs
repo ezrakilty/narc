@@ -15,10 +15,11 @@ import Numeric.Unary()
 data Query =
     Select {
       rslt :: Row,
-      tabs :: [(Tabname, Tabname, Type)],
+      tabs :: [(Query, Tabname, Type)],
       cond :: [QBase]
     }
     | Union Query Query
+    | Table Tabname
       deriving(Eq, Show)
 
 type Row = [(Field, QBase)]
@@ -31,6 +32,8 @@ data QBase =
     | Field Tabname Field
     | If QBase QBase QBase
     | Exists Query
+    | CountRows
+--    | Length Query -- TBD: unify Exists and Length as some kind of QueryFnApp
       deriving (Eq, Show)
 
 data DataItem = Num Integer
@@ -76,13 +79,20 @@ sizeQueryB (Exists q)  = 1 + (sizeQuery q)
 -- Dies on those @Query@s that don't represent valid SQL queries.
 serialize :: Query -> String
 serialize q@(Select _ _ _) =
-    "select " ++ serializeRow (rslt q) ++
-    " from " ++ mapstrcat ", " (\(a, b, _) -> a ++ " as " ++ b) (tabs q) ++
-    " where " ++ if null (cond q) then
+    "(select " ++ (if null (rslt q) then "0" else (serializeRow (rslt q)))
+              ++ (if null (tabs q) then "" else 
+                   " from " ++ serializeTabs (tabs q))
+              ++ " where " ++ if null (cond q) then
                      "true"
-                 else mapstrcat " and " serializeAtom (cond q)
+                 else mapstrcat " and " serializeAtom (cond q) ++
+    ")"
 serialize (Union l r) =
     "(" ++ serialize l ++ ") union (" ++ serialize r ++ ")"
+serialize (Table t) =
+    t
+
+serializeTabs :: [(Query, Tabname, Type)] -> String
+serializeTabs = mapstrcat ", " (\(a, b, _) -> serialize a ++ " as " ++ b)
 
 serializeRow :: [(String, QBase)] -> String
 serializeRow (flds) =
@@ -101,6 +111,24 @@ serializeAtom (If cond l r) =
     " end)"
 serializeAtom (Exists q) =
     "exists (" ++ serialize q ++ ")"
+serializeAtom (CountRows) = "count(*)"
+-- serializeAtom (Length q) =
+--     "count (" ++ serialize q ++ ")"
+
+-- crossSimpletonValues :: [(QBase, (Tabname, Query))] -> Query
+-- crossSimpletonValues values =
+--     Select {rslt = map fst values,
+--             tabs = map snd values,
+--             cond = []}
+
+count :: Query -> (QBase, [(Query, Tabname, Type)])
+count q@(Select _ _ _) =
+    (Field "x" "count", -- TBD: need a unique name
+     [(Select {rslt = [("count", CountRows)],
+              tabs = tabs q,
+              cond = cond q},
+       "x",
+       undefined)])
 
 serializeLit :: DataItem -> String
 serializeLit (Num i) = show i

@@ -186,7 +186,7 @@ translateF :: Term b -> SQL.Query
 translateF (Comp x (Table tabname fTys, _) n, _) =
     let q@(SQL.Select _ _ _) = translateF n in
     SQL.Select {SQL.rslt = SQL.rslt q,
-                SQL.tabs = (tabname, x, TRecord fTys):SQL.tabs q,
+                SQL.tabs = (SQL.Table tabname, x, TRecord fTys) : SQL.tabs q,
                 SQL.cond = SQL.cond q
                }
 translateF (z@(If _ _ (Nil, _), _))                             = translateZ z
@@ -197,33 +197,45 @@ translateF (z, _) = error $ "translateF for unexpected term: " ++ pretty z
 translateZ :: Term b -> SQL.Query
 translateZ (If b z (Nil, _), _) =
     let q@(SQL.Select _ _ _) = translateZ z in
+    let (b', extraQs) = translateB b in
     SQL.Select {SQL.rslt = SQL.rslt q,
-                SQL.tabs = SQL.tabs q,
-                SQL.cond = translateB b : SQL.cond q
+                SQL.tabs = extraQs ++ SQL.tabs q,
+                SQL.cond = b' : SQL.cond q
                }
 translateZ (Singleton (Record fields, _), _) = 
-    SQL.Select {SQL.rslt = alistmap translateB fields,
-                SQL.tabs = [],
+    let temp = alistmap translateB fields in
+    let fields' = map (\(f, (x, _)) -> (f, x)) temp in
+    let extraQs = concat (map (\(_, (_, q)) -> q) temp) in
+    SQL.Select {SQL.rslt = fields',
+                SQL.tabs = extraQs,
                 SQL.cond = []
                }
 translateZ (Table tableName fTys, _) =
     SQL.Select {SQL.rslt = [(l, SQL.Field tableName l) | (l, _ty) <- fTys],
-                SQL.tabs = [(tableName, tableName, TRecord fTys)],
+                SQL.tabs = [(SQL.Table tableName, tableName, TRecord fTys)],
                 SQL.cond = []
                }
 translateZ (z, _) = error $ "translateZ got unexpected term: " ++ pretty z
 
-translateB :: Term b -> SQL.QBase
-translateB (If b b' b'', _)            = SQL.If (translateB b)
-                                           (translateB b')
-                                           (translateB b'') 
-translateB (Bool n, _)                 = (SQL.Lit (SQL.Bool n))
-translateB (Num n, _)                  = (SQL.Lit (SQL.Num n))
-translateB (String s, _)               = (SQL.Lit (SQL.String s))
-translateB (Project (Var x, _) l, _)   = SQL.Field x l
-translateB (PrimApp "not" [arg], _)    = SQL.Not (translateB arg)
-translateB (PrimApp str [l, r], _)     =
-    SQL.Op (translateB l) (translatePrimOp str) (translateB r)
+translateB :: Term b -> (SQL.QBase, [(SQL.Query, Tabname, Type)])
+translateB (If b b' b'', _)            = 
+    let ((bSql, q1), (b'Sql, q2), (b''Sql, q3)) = 
+            (translateB b,
+             translateB b',
+             translateB b'') in
+    (SQL.If bSql b'Sql b''Sql,
+     q1 ++ q2 ++ q3)
+translateB (Bool n, _)                 = ((SQL.Lit (SQL.Bool n)), [])
+translateB (Num n, _)                  = ((SQL.Lit (SQL.Num n)), [])
+translateB (String s, _)               = ((SQL.Lit (SQL.String s)), [])
+translateB (Project (Var x, _) l, _)   = (SQL.Field x l, [])
+translateB (PrimApp "not" [arg], _)    = let (arg', qs) = translateB arg in
+                                         (SQL.Not arg', qs)
+translateB (PrimApp "length" [arg], _) = (SQL.count (translateF arg))
+translateB (PrimApp str [l, r], _)     = -- TBD restrict this with a guard
+    let (l', lQ) = (translateB l) in
+    let (r', rQ) = (translateB r) in
+    (SQL.Op l' (translatePrimOp str) r', lQ ++ rQ)
 translateB (b, _) = error $ "translateB got unexpected term: " ++ pretty b
 
 translatePrimOp :: String -> SQL.Op

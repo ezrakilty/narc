@@ -7,11 +7,35 @@
 -- Many of the functions in this module are in fact the syntactic 
 -- forms of the embedded language. Use them as, for example:
 -- 
--- > let employeesSchema = [("name", TString), ("salary", TNum)] in
--- > let employeesTable = table "employees" employeesSchema in
--- > foreach employeesTable $ \emp -> 
--- >   having (primApp "<" [cnst 20000, project emp "salary"]) $
--- >   singleton (record [("name", project emp "name")])
+-- As an example, suppose we have a flat, normalized schema for a set
+-- of teams and their players:
+-- 
+-- > teamsTable   = table "teams"   [("name", TString), ("id",     TNum)]
+-- > playersTable = table "players" [("name", TString), ("teamId", TNum)]
+--
+-- We can denormalize it into a *nested* table of teams with their
+-- full player rosters as follows:
+-- 
+-- > teamRosters = foreach teamsTable $ \t ->
+-- >               singleton (record [("teamName", project t "name"),
+-- >                                  ("roster", foreach playersTable $ \p ->
+-- >                                             having (primApp "=" [p ./ "teamId", t ./ "id"]) $
+-- >                                               (singleton (record [("name", (project p "name"))])))])
+-- 
+-- And we can return a list of those teams with at least 9 players as follows:
+--
+-- > validTeams = foreach teamRosters $ \t ->
+-- >              having (primApp ">=" [(primApp "length" [t ./ "roster"]), cnst (9::Integer)]) $
+-- >              singleton (record [("teamName", project t "teamName")])
+--
+-- The intermediate data structure, @teamRosters@, used nested lists,
+-- and although that isn't a SQL datatype, our full query is compiled
+-- into the following SQL by Narc:
+--
+-- > select _0.name as teamName
+-- > from teams as _0, (select count(*) as count
+-- >                    from players as _1
+-- >                    where _1.teamId = _0.id as x where x.count >= 9)
 
 module Database.Narc (
   -- * Translation to an SQL representation
@@ -58,13 +82,6 @@ import Database.Narc.Embed
 
 import Database.Narc.HDBC
 
--- THE AWESOME FULL COMPILATION FUNCTION -------------------------------
-
-typeCheckAndCompile :: Term a -> SQL.Query
-typeCheckAndCompile = compile [] . runTyCheck []
-
--- The Narc embedded langauge-------------------------------------------
-
 -- Example query
 
 example_dull :: Term ()
@@ -72,6 +89,10 @@ example_dull = (Comp "x" (Table "foo" [("a", TBool)], ())
                 (If (Project (Var "x", ()) "a", ())
                  (Singleton (Var "x", ()), ())
                  (Nil, ()), ()), ())
+
+-- | Infer types for a Narc term and convert it to an equivalent SQL query.
+typeCheckAndCompile :: Term a -> SQL.Query
+typeCheckAndCompile = compile [] . runTyCheck []
 
 -- | Translate a Narc term to an SQL query string--perhaps the central
 -- | function of the interface.

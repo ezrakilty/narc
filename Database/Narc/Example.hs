@@ -4,6 +4,7 @@ module Database.Narc.Example where
 
 import Test.HUnit
 import Database.Narc
+import Database.Narc.Embed
 
 example1 = let t = (table "foo" [("a", TBool)]) in
            foreach t $ \x -> 
@@ -36,17 +37,58 @@ example5 =
                               , ("name",      TString)
                               , ("startdate", TNum)
                               ]
-    in let query =
+    in let highEarners =
+           -- employees having salary above 20000
             foreach employees $ \emp ->
             having (primApp "<" [cnst (20000 :: Integer), project emp "salary"]) $
             singleton (record [ ("name", project emp "name"),
                                 ("startdate", project emp "startdate") ])
 
-    in let query2 =
-            foreach query $ \emp ->
+    in let highEarnersFromBefore98 =
+            foreach highEarners $ \emp ->
             having (primApp "<" [project emp "startdate", cnst (1998 :: Integer)]) $
             singleton (record [("name", project emp "name")])
-    in query2
+    in highEarnersFromBefore98
+
+example6 =
+    let employees =
+            table "employees" [ ("salary",    TNum)
+                              , ("name",      TString)
+                              , ("manager",   TString)
+                              , ("startdate", TNum)
+                              ]
+    in let teamOf emp = foreach employees $ \e2 ->
+                        having (primApp "==" [e2 ./ "manager", emp ./ "manager"]) $
+                        singleton e2
+    in let highEarners =
+            foreach employees $ \emp ->
+            having (primApp "<" [cnst (20000 :: Integer), project emp "salary"]) $
+            singleton (record [ ("name", project emp "name"),
+                                ("startdate", project emp "startdate") ])
+
+    in let highEarnersFromBefore98 =
+            foreach highEarners $ \emp ->
+            having (primApp "<" [project emp "startdate", cnst (1998 :: Integer)]) $
+            singleton (record [("name", project emp "name")])
+    in highEarnersFromBefore98
+
+example_teamRosters = 
+  let teamsTable   = table "teams"   [("name", TString), ("id",     TNum)] in
+  let playersTable = table "players" [("name", TString), ("teamId", TNum)] in
+  let teamRosters = foreach teamsTable $ \t ->
+                    singleton (record [("teamName", project t "name"),
+                                       ("roster", foreach playersTable $ \p ->
+                                                  having (primApp "=" [p ./ "teamId", t ./ "id"]) $
+                                                    (singleton (record [("name", (project p "name"))])))])
+
+-- And we can return a list of those teams with at least 9 players as follows:
+  in
+  let validTeams = foreach teamRosters $ \t ->
+                   having (primApp ">=" [(primApp "length" [t ./ "roster"]), cnst (9::Integer)]) $
+                   singleton (record [("teamName", project t "teamName")])
+                             in validTeams
+
+testx = narcToSQLString nil ~?= "select 0 where false"
 
 -- Unit tests ----------------------------------------------------------
 

@@ -83,6 +83,12 @@ record fields = (!) <$> (Record <$> sequence [do expr' <- expr ; return (lbl, ex
 project :: NarcTerm -> String -> NarcTerm
 project expr field = (!) <$> (Project <$> expr <*> return field)
 
+-- | Infix field projection: @aRecord ./ aField@ denotes the
+-- projection of aField from aRecord. Chosen to remind us of the "."
+-- notation for field access in Algolish languages, and the "/"
+-- notation for paths in UNIX, XQuery, etc.
+(./) = project
+
 -- | For each item in the collection resulting from the first
 -- argument, give it to the function which is the second argument
 -- and evaluate--this corresponds to a loop, or two one part of a

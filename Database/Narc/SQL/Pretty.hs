@@ -10,7 +10,7 @@ instance Pretty Query where
                                           pretty expr ++ " as " ++ alias)
                       flds ++ 
          (if null tabs then "" else
-         " from " ++ mapstrcat ", " (\(name, alias, _ty) -> name ++ " as " ++ alias) 
+         " from " ++ mapstrcat ", " (\(name, alias, _ty) -> serialize name ++ " as " ++ alias) 
                          tabs) ++ 
          " where " ++ pretty_conds cond
 
