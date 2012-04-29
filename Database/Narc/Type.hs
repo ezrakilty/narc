@@ -7,14 +7,15 @@ import Test.QuickCheck
 import Gensym
 import QCUtils
 
-import Data.List ((\\))
+import Data.List ((\\), intersperse)
 import Control.Monad.State (State(..), get, put, evalState) -- TBD: use Gensym monad instead
 import Control.Applicative ((<$>))
 import Database.Narc.Failure (Failure, fayl)
 import Database.Narc.Failure.QuickCheck
 import Database.Narc.Util (dom, rng, image, alistmap, sortAlist, onCorresponding,
-                     disjointAlist, validEnv, eqUpTo)
+                           disjointAlist, validEnv, eqUpTo)
 import Database.Narc.Var
+import Database.Narc.Pretty
 
 type TyVar = Int
 
@@ -23,6 +24,18 @@ data Type = TBool | TNum | TString | TUnit | TList Type
           | TRecord [(String, Type)]
           | TVar TyVar
     deriving (Eq, Show)
+
+instance Pretty Type where
+    pretty TBool = "Bool"
+    pretty TNum = "Num"
+    pretty TString = "String"
+    pretty TUnit = "Unit"
+    pretty (TList ty) = "[" ++ pretty ty ++ "]"
+    pretty (TArr s t) = pretty s ++ " -> " ++ pretty t
+    pretty (TRecord fields) =
+        "{" ++ (concat $ intersperse ", " [label ++ " : " ++ pretty field 
+                                           | (label, field) <- fields]) ++ "}"
+    pretty (TVar x) = "x" ++ show x
 
 type QType = ([TyVar], Type)
 

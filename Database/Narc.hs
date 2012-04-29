@@ -7,7 +7,8 @@
 -- The primed functions in this module are in fact the syntactic 
 -- forms of the embedded language. Use them as, for example:
 -- 
--- >  foreach (table "employees" []) $ \emp ->
+-- > let employees = table "employees" [("salary", TNum), ("name", TString)] in
+-- >  foreach employees $ \emp ->
 -- >    having (primApp "<" [cnst 20000, project emp "salary"]) $
 -- >    singleton (record [(project emp "name")])
 
@@ -16,9 +17,11 @@ module Database.Narc (
   NarcTerm,
   -- * Translation to an SQL representation
   narcTermToSQL,
+  narcTermToSQLString,
   -- * The language itself
-  unit, Const, primApp, abs, app, ifthenelse, singleton,
-  nil, union, record, project, foreach, having
+  table,
+  unit, Const, cnst', primApp, abs, app, ifthenelse, singleton,
+  nil, union, record, project, foreach, having,
 ) where
 
 import Prelude hiding (abs, catch)
@@ -35,7 +38,7 @@ import Test.QuickCheck hiding (promote, Failure)
 import QCUtils
 import Test.HUnit hiding (State, assert)
 
-import Debug.Trace
+-- import Debug.Trace
 
 import Gensym
 
@@ -94,7 +97,7 @@ unit = return $ (!) Unit
 -- | A polymorphic way of embedding constants into a term.
 class Const' a where cnst' :: a -> NarcTerm
 instance Const' Bool where cnst' b = return ((!)(Bool b))
-instance Const' Integer where cnst' n = return ((!)(Num n))
+instance Const' Integer where cnst' n = return ((!)(Num n)) -- Should probably be Int
 
 -- | Apply some primitive function, such as @(+)@ or @avg@, to a list
 -- of arguments.

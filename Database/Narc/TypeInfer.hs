@@ -12,7 +12,9 @@ import Database.Narc.AST
 import Database.Narc.Type
 import Database.Narc.Failure
 import Database.Narc.Debug (debug)
+import Database.Narc.Pretty
 
+import Database.Narc.AST.Pretty
 --
 -- Type inference ------------------------------------------------------
 --
@@ -61,7 +63,7 @@ tyCheck env (Abs x n, _) =
        let argTy = applyTySubst tySubst $ TVar argTyVar
        return(tySubst,
               (Abs x n', (TArr argTy nTy)))
-tyCheck env (If c a b, _) =
+tyCheck env (term@(If c a b, _)) =
     do (cTySubst, c'@(_, (cTy))) <- tyCheck env c
        (aTySubst, a'@(_, (aTy))) <- tyCheck env a
        (bTySubst, b'@(_, (bTy))) <- tyCheck env b
@@ -80,7 +82,7 @@ tyCheck env (Singleton m, _) =
     do (tySubst, m'@(_, (mTy))) <- tyCheck env m
        return (tySubst,
                (Singleton m', (TList mTy)))
-tyCheck env (Union a b, _) =
+tyCheck env (term@(Union a b, _)) =
     do (aTySubst, a'@(_, (aTy))) <- tyCheck env a
        (bTySubst, b'@(_, (bTy))) <- tyCheck env b
        abTySubst <- under $ unify aTy bTy
@@ -96,7 +98,7 @@ tyCheck env (Record fields, _) =
        return (tySubst,
                (Record (zip fieldNames terms),
                 (TRecord [(name,ty)| (ty, name) <- zip fieldTys fieldNames])))
-tyCheck env (Project m f, _) =
+tyCheck env (term@(Project m f, _)) =
     do rowVar <- lift gensym; a <- lift gensym
        (tySubst, m'@(_, mTy)) <- tyCheck env m
        case mTy of
@@ -106,11 +108,13 @@ tyCheck env (Project m f, _) =
          TRecord fieldTys ->
                 case lookup f fieldTys of
                   Nothing -> fail("no field " ++ f ++ " in record " ++ 
-                                  show (strip m))
+                                  pretty (strip m))
                   Just fieldTy ->
                       return (tySubst,
                               (Project m' f, fieldTy))
-         _ -> fail("Project from non-record type.")
+         _ -> fail("Type error: projection of field '" ++ f ++
+                   "' from non-record type " ++ pretty mTy ++
+                   " in term " ++ pretty (strip term) ++ ".")
 tyCheck env (App m n, _) = 
     do a <- lift gensym; b <- lift gensym;
        (mTySubst, m'@(_, (mTy))) <- tyCheck env m
@@ -141,6 +145,7 @@ tyCheck env term@(Comp x src body, d) =
        resultSubst <- under $ composeTySubst [substSrc, substBody]
        return (resultSubst, (Comp x src' body', bodyTy))
 
+unquantType :: Type -> QType
 unquantType ty = ([], ty)
 
 typeAnno :: Term Type -> Type
@@ -164,7 +169,7 @@ runInfer = runErrorGensym . infer
 
 runTyCheck env m = runErrorGensym $ 
     do initialTyEnv <- makeInitialTyEnv
-       (subst, m') <- tyCheck (initialTyEnv++env) m
+       (subst, m') <- tyCheck (initialTyEnv ++ env) m
        return $ retagulate (applyTySubst subst . snd) m'
 
 inferTys :: Term () -> ErrorGensym Type

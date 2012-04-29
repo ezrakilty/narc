@@ -31,8 +31,8 @@ etaExpand expr fieldTys =
      exprTy)
 
 -- | Normalize DB terms in a nearly call-by-value way.
-normTerm :: [(String, QType)] -- ^ An environment, typing all free vars.
-         -> TypedTerm         -- ^ The term to normalize.
+normTerm :: TyEnv      -- ^ An environment, typing all free vars.
+         -> TypedTerm  -- ^ The term to normalize.
          -> TypedTerm
 normTerm _env (m@(Unit, _ty))   = m
 normTerm _env (m@(Bool _, _))   = m
@@ -46,7 +46,7 @@ normTerm env (expr@(Var x, t)) =
           TRecord t' -> etaExpand expr t'
           _ -> (Var x, t) 
     else
-      error $ "Free variable "++ x ++ " in normTerm"
+      error $ "Free variable " ++ x ++ " in normTerm"
 normTerm _env (Abs x n, t) =
     (Abs x n, t)
 normTerm env (App l m, t) = 
@@ -109,25 +109,26 @@ normTerm env (Comp x src body, t) =
       (Nil, _) -> (Nil, t)
       (Singleton src', _) -> 
           forceAndReport (
-            let !n' = substTerm x src' body in
-            normTerm env (runTyCheck env n')
+            let !body' = substTerm x src' body in
+            normTerm env (runTyCheck env body')
           ) ("Substituting " ++ show src' ++ " for " ++ x ++ " in " ++ show body)
       (Comp y src2 body2, _) ->
           -- Freshen @y@ over @src@ with respect to @body@ (that of
           -- the outer comprehension), because we're widening the
           -- scope of @y@ to include @body@.
-          let (y', body') = if y `elem` fvs body then
-                              let newY = minFreeFor body in
-                              (newY, rename y newY body)
-                         else (y, body)
+          let (y', body2') =
+                  if y `elem` fvs body then
+                      let newY = 'z' : minFreeFor body in
+                      (newY, rename y newY body2)
+                  else (y, body2)
           in
-            (normTerm env (Comp y' src2 (Comp x body2 body', t), t))
+            (normTerm env (Comp y' src2 (Comp x body2' body, t), t))
       (srcL `Union` srcR, _) ->
           ((normTerm env (Comp x srcL body, t)) `Union` 
            (normTerm env (Comp x srcR body, t)), t)
       (tbl @ (Table _tableName fieldTys, _)) ->
           insert (\(v',t') -> (Comp x tbl (v',t'), t')) $
-                 let env' = Type.bind x ([],TList(TRecord fieldTys)) env in 
+                 let env' = Type.bind x ([],TRecord fieldTys) env in 
                  normTerm env' body
       (If cond' src' (Nil, _), _) ->
           assert (x `notElem` fvs cond') $
@@ -206,6 +207,7 @@ translateB (Num n, _)                  = (QNum n)
 translateB (Project (Var x, _) l, _)   = QField x l
 translateB (PrimApp "not" [arg], _)    = QNot (translateB arg)
 translateB (PrimApp "<" [l, r], _)     = QOp (translateB l) Less (translateB r)
+translateB (PrimApp "==" [l, r], _)    = QOp (translateB l) Eq (translateB r)
 translateB b = error$ "translateB got unexpected term: " ++ (pretty.fst) b
 
 compile :: TyEnv -> TypedTerm -> Query
