@@ -98,7 +98,7 @@ foreach src k = do
   src' <- src
   n <- gensym
   let x = '_' : show n
-  body' <- k (return (var_ x))
+  body' <- k (return ((!)(Var x)))
   return $ (!)(Comp x src' body')
 
 -- | Filter the current iteration as per the condition in the first

@@ -5,8 +5,8 @@ module Database.Narc.AST (
   fvs, substTerm,
   strip, retagulate, rename, variables,
   (!),
-  unit_, Const, cnst_, primApp_, var_, abs_, app_, table_, ifthenelse_,
-  singleton_, nil_, union_, record_, project_, foreach_,
+  -- unit_, Const, cnst_, primApp_, var_, abs_, app_, table_, ifthenelse_,
+  -- singleton_, nil_, union_, record_, project_, foreach_,
   module Database.Narc.Common
 ) where
 
@@ -292,6 +292,9 @@ instance NarcSem (Term'(),()) where
   project body field = (!)(Project body field)
   foreach src x body = (!)(Comp x src body)
 -- class Const a where cnst_ :: a -> Term ()
+
+{- AST-constructing utilities. But I've decided to use the NarcSem
+   class instead. -}
 
 unit_ = (!)Unit
 class Const a where cnst_ :: a -> Term ()
