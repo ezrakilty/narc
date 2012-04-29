@@ -58,7 +58,7 @@ example6 =
                               , ("startdate", TNum)
                               ]
     in let teamOf emp = foreach employees $ \e2 ->
-                        having (primApp "==" [e2 ./ "manager", emp ./ "manager"]) $
+                        having (primApp "=" [e2 ./ "manager", emp ./ "manager"]) $
                         singleton e2
     in let highEarners =
             foreach employees $ \emp ->
@@ -88,6 +88,59 @@ example_teamRosters =
                    singleton (record [("teamName", project t "teamName")])
                              in validTeams
 
+
+-- | Take the "first" @n@ elements resulting from @query@. TBD: implement!
+takeNarc n query = query
+
+-- | Transform a result set into an ordered result set. TBD: implement!
+orderByDesc field query = query
+
+-- | A peculiar query from my train game Perl implementation.
+exampleQuery currentPlayer gameID =
+    let playing = table "playing" [("gameID", TNum),
+                                   ("player", TNum),
+                                   ("position", TNum)] in
+    let playingHere = foreach playing $ \p -> 
+                      having (primApp "=" [project p "gameID", gameID]) $
+                      singleton p in
+    takeNarc 1 $ -- narcify
+    orderByDesc "position" $ -- define
+    (foreach playingHere $ \a ->
+     foreach playingHere $ \b ->
+     having (primApp "and" [primApp "=" [primApp "+" [project a "position",
+                                                       cnst (1::Integer)],
+                                          project b "position"],
+                            primApp "=" [project a "player", currentPlayer]]) $
+     singleton (record [("player", project b "player"),
+                        ("position", project b "position")]))
+    `union`
+    (foreach playingHere $ \a ->
+     having (primApp "=" [project a "position", cnst (1::Integer)]) $
+     singleton (record [("player", project a "player"),
+                        ("position", project a "position")]))
+-- The original query: select the player to the right of the current
+-- player, or player 1 if there is no current player.
+
+-- select b.player as player, b.position as position
+--   from playing a, playing b
+--  where a.position + 1 = b.position and a.player = $current_player
+-- union
+-- select a.player as player, a.position as position
+--   from playing a
+--  where a.gameID = 1 and a.position = 1
+--  order by position desc limit 1
+
+-- How the query compiles:
+-- ((select _2.player as player, _2.position as position
+--   from playing as _0, playing as _2
+--   where _0.gameID = 1 and _2.gameID = 1 and
+--       _0.position + 1 = _2.position and _0.player = 1))
+-- union
+-- ((select _4.player as player, _4.position as position
+--   from playing as _4
+--   where _4.gameID = 1 and _4.position = 1))
+
+-- | A trivial example.
 testx = narcToSQLString nil ~?= "select 0 where false"
 
 -- Unit tests ----------------------------------------------------------

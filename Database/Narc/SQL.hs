@@ -43,7 +43,7 @@ data DataItem = Num Integer
 
 -- | Binary operators used in queries.
 data Op = Eq | NonEq | Less | LessOrEq | Greater | GreaterOrEq
-        | Plus | Minus | Times | Divide
+        | Plus | Minus | Times | Divide | And | Or
         deriving(Eq, Show)
 
 -- | Unary operators used in queries.
@@ -145,3 +145,5 @@ serializeOp Plus        = "+"
 serializeOp Minus       = "-"
 serializeOp Times       = "*"
 serializeOp Divide      = "/"
+serializeOp And         = "and"
+serializeOp Or          = "or"

@@ -1,17 +1,9 @@
 {-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
 
 module Database.Narc.AST (
-  Term'(..),
-  Term,
-  VarName,
-  PlainTerm,
-  TypedTerm,
-  fvs,
-  substTerm,
-  strip,
-  retagulate,
-  rename,
-  variables,
+  Term'(..), Term, VarName, PlainTerm, TypedTerm,
+  fvs, substTerm,
+  strip, retagulate, rename, variables,
   (!),
   unit_, Const, cnst_, primApp_, var_, abs_, app_, table_, ifthenelse_,
   singleton_, nil_, union_, record_, project_, foreach_,

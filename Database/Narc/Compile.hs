@@ -249,6 +249,8 @@ translatePrimOp ("+")   = SQL.Plus
 translatePrimOp ("-")   = SQL.Minus
 translatePrimOp ("*")   = SQL.Times
 translatePrimOp ("/")   = SQL.Divide
+translatePrimOp ("and") = SQL.And
+translatePrimOp ("or")  = SQL.Or
 translatePrimOp str = error $ "unknown primitive function call: " ++ str
 
 compile :: TyEnv -> TypedTerm -> SQL.Query

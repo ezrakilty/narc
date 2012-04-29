@@ -1,5 +1,10 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
-  UndecidableInstances {- Enable undecidable instances to allow Num => Numish implication, which should be safe (?) if we think of Num as "less than" Numish, and don't make any loops back to the lesser tier. -} #-}
+  UndecidableInstances {- Enable undecidable instances to allow Num =>
+                       {- Numish implication, which should be safe (?)
+                       {- if we think of Num as "less than" Numish,
+                       {- and don't make any loops back to the lesser
+                       {- tier. -}
+#-}
 
 module Algebras where
 
