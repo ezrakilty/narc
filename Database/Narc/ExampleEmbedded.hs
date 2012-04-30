@@ -1,10 +1,13 @@
 -- | Some example queries demonstrating the Narc interface.
 
-module Database.Narc.Example where
+module Database.Narc.ExampleEmbedded where
 
+import Prelude hiding ((<), (==), (>=), (>), (<=), (/=), (+), (&&))
 import Test.HUnit
 import Database.Narc
 import Database.Narc.Embed
+import Database.Narc.Embed.Ops
+import Algebras
 
 example1 = let t = (table "foo" [("a", TBool)]) in
            foreach t $ \x -> 
@@ -15,21 +18,21 @@ example2 = let t = (table "foo" [("a", TNum)]) in
             let s = (table "bar" [("a", TNum)]) in
             foreach t $ \x -> 
             foreach s $ \y -> 
-            ifthenelse (primApp "<" [project x "a", project y "a"])
+            ifthenelse ((x ./ "a") < (y ./ "a")) -- TODO: fix precedence.
              (singleton x)
              (singleton y)
 
 example3 =
     let t = table "employees" [("name", TString), ("salary", TNum)] in
     foreach t $ \emp ->
-    having (primApp "<" [cnst (20000::Integer), project emp "salary"]) $
-      result [("nom", project emp "name")]
+    having (20000 < (emp./"salary")) $
+      result [("nom", emp ./ "name")]
 
 example4 =
     let t = table "employees" [("name", TString), ("salary", TNum)] in
     foreach t $ \emp ->
-    having (primApp "=" [cnst "Joe", project emp "name"]) $
-      result [("nom", project emp "name")]
+    having (cnst "Joe" == (emp./ "name")) $ -- TODO: still have to inject "Joe"
+      result [("nom", emp ./ "name")]
 
 example5 =
     let employees =
@@ -40,14 +43,14 @@ example5 =
     in let highEarners =
            -- employees having salary above 20000
             foreach employees $ \emp ->
-            having (primApp "<" [cnst (20000 :: Integer), project emp "salary"]) $
-            result [ ("name", project emp "name"),
-                     ("startdate", project emp "startdate") ]
+            having (20000 < (emp./ "salary")) $
+            result [ ("name", emp ./ "name"),
+                     ("startdate", emp ./ "startdate") ]
 
     in let highEarnersFromBefore98 =
             foreach highEarners $ \emp ->
-            having (primApp "<" [project emp "startdate", cnst (1998 :: Integer)]) $
-            result [("name", project emp "name")]
+            having ((emp ./ "startdate") < 1998) $
+            result [("name", emp ./ "name")]
     in highEarnersFromBefore98
 
 example6 =
@@ -58,22 +61,19 @@ example6 =
                               , ("startdate", TNum)
                               ]
     in let teamOf emp = foreach employees $ \e2 ->
-                        having (primApp "=" [e2 ./ "manager", emp ./ "manager"]) $
+                        having ((e2 ./ "manager") == (emp ./ "manager")) $
                         singleton e2
     in let highEarners =
             foreach employees $ \emp ->
-            having (primApp "<" [cnst (20000 :: Integer), project emp "salary"]) $
-            result [ ("name", project emp "name")
-                   , ("startdate", project emp "startdate")
-                   , ("manager", project emp "manager")
-                   ]
+            having (20000 < (emp ./ "salary")) $
+            result [ ("name", emp ./ "name"),
+                     ("startdate", emp ./ "startdate"),
+                     ("manager", emp ./ "manager") ]
 
     in let highEarnersFromBefore98 =
             foreach highEarners $ \emp ->
-            having (primApp "<" [project emp "startdate", cnst (1998 :: Integer)]) $
-            result [ ("name", project emp "name")
-                   , ("manager", project emp "manager")
-                   ]
+            having ((emp ./ "startdate") < 1998) $
+            result [("name", emp ./ "name"), ("manager", emp ./ "manager")]
     in foreach highEarnersFromBefore98 teamOf
 
 example_teamRosters = 
@@ -84,17 +84,23 @@ example_teamRosters =
   in
   let teamRosters =
           foreach teamsTable $ \t ->
-          result [("teamName", project t "name"),
+          result [("teamName", t ./ "name"),
                   ("roster", rosterFor t)]
 -- And we can return a list of those teams with at least 9 players as follows:
   in
-  let validTeams = foreach teamRosters $ \t ->
-                   having (primApp ">=" [(primApp "length" [t ./ "roster"]), cnst (9::Integer)]) $
-                   result [("teamName", project t "teamName")]
+  let validTeams =
+          foreach teamRosters $ \t ->
+          having ((primApp "length" [t ./ "roster"]) >= 9) $
+          result [("teamName", t ./ "teamName")]
   in validTeams
 
+-- NOTE: Ordinary comparison still works, but requires some type annotation.
+equals2 x = 2 == x :: Bool
+
+{- Utility functions -}
+
 fieldValue field value p =
-    primApp "=" [p ./ field, value]
+    (p ./ field) == value
 
 filterToFieldValue table field value =
     foreach table $ \p ->
@@ -105,6 +111,8 @@ narrowToNames names src =
     foreach src $ \p ->
     result [(n, p ./ n) | n <- names]
 
+{- Dummies, not yet implemented as part of the actual language. -}
+
 -- | Take the "first" @n@ elements resulting from @query@. TBD: implement!
 takeNarc n query = query
 
@@ -112,29 +120,26 @@ takeNarc n query = query
 orderByDesc field query = query
 
 -- | A peculiar query from my train game Perl implementation.
-exampleQuery :: Integer -> Integer -> NarcTerm
 exampleQuery currentPlayer gameID =
     let playing = table "playing" [("gameID", TNum),
                                    ("player", TNum),
                                    ("position", TNum)] in
-    let playingHere = foreach playing $ \p -> 
-                      having (primApp "=" [project p "gameID", cnst gameID]) $
-                      singleton p in
-    takeNarc 1 $ -- narcify
-    orderByDesc "position" $ -- define
+    let playingHere = filterToFieldValue playing "gameID" gameID
+    in
+    takeNarc 1 $             -- TODO: define
+    orderByDesc "position" $ -- TODO: define
     (foreach playingHere $ \a ->
      foreach playingHere $ \b ->
-     having (primApp "and" [primApp "=" [primApp "+" [project a "position",
-                                                       cnst (1::Integer)],
-                                          project b "position"],
-                            primApp "=" [project a "player", cnst currentPlayer]]) $
-     result [("player", project b "player"),
-             ("position", project b "position")])
+     having ((a ./ "position") + 1 == (b ./ "position") &&
+             (a ./ "player") == currentPlayer) $
+     result [("player",   b ./ "player"),
+             ("position", b ./ "position")])
     `union`
     (foreach playingHere $ \a ->
-     having (primApp "=" [project a "position", cnst (1::Integer)]) $
-     result [("player", project a "player"),
-             ("position", project a "position")])
+     having ((a ./ "position") == 1) $
+     result [("player",   a ./ "player"),
+             ("position", a ./ "position")])
+
 -- The original query: select the player to the right of the current
 -- player, or player 1 if there is no current player.
 

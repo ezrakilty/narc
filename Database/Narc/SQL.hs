@@ -79,13 +79,12 @@ sizeQueryB (Exists q)  = 1 + (sizeQuery q)
 -- Dies on those @Query@s that don't represent valid SQL queries.
 serialize :: Query -> String
 serialize q@(Select _ _ _) =
-    "(select " ++ (if null (rslt q) then "0" else (serializeRow (rslt q)))
+    "select " ++ (if null (rslt q) then "0" else (serializeRow (rslt q)))
               ++ (if null (tabs q) then "" else 
                    " from " ++ serializeTabs (tabs q))
               ++ " where " ++ if null (cond q) then
                      "true"
-                 else mapstrcat " and " serializeAtom (cond q) ++
-    ")"
+                 else mapstrcat " and " serializeAtom (cond q)
 serialize (Union l r) =
     "(" ++ serialize l ++ ") union (" ++ serialize r ++ ")"
 serialize (Table t) =

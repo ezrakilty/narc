@@ -102,3 +102,4 @@ narcToSQLString = SQL.serialize . narcToSQL
 -- | Translate a Narc term to an SQL query.
 narcToSQL :: NarcTerm -> SQL.Query
 narcToSQL = typeCheckAndCompile . realize
+

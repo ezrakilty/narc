@@ -18,8 +18,8 @@ instance BoolAlg NarcTerm where
     not x = primApp "not" [x]
 
 instance Eqish NarcTerm NarcTerm where
-  (==) x y = primApp "=" [x,y]
-  (/=) x y = primApp "<>" [x,y]
+    (==) x y = primApp "=" [x,y]
+    (/=) x y = primApp "<>" [x,y]
 
 -- instance Numish NarcTerm where
 --   (+) x y = primApp "+" [x,y]
