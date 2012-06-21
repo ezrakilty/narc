@@ -12,28 +12,28 @@ import Database.Narc.Embed.Ops
 
 example1 = let t = (table "foo" [("a", TBool)]) in
            foreach t $ \x -> 
-           (having (project x "a")
+           (having (x ./ "a")
              (singleton x))
 
 example2 = let t = (table "foo" [("a", TNum)]) in
             let s = (table "bar" [("a", TNum)]) in
             foreach t $ \x -> 
             foreach s $ \y -> 
-            ifthenelse (project x "a" < project y "a")
+            ifthenelse (x ./ "a" < y ./ "a")
              (singleton x)
              (singleton y)
 
 example3 =
     let t = table "employees" [("name", TString), ("salary", TNum)] in
     foreach t $ \emp ->
-    having (20000 < project emp "salary") $
-      result [("nom", project emp "name")]
+    having (20000 < emp ./ "salary") $
+      result [("nom", emp ./ "name")]
 
 example4 =
     let t = table "employees" [("name", TString), ("salary", TNum)] in
     foreach t $ \emp ->
-    having (cnst "Joe" /= project emp "name") $
-      result [("nom", project emp "name")]
+    having (cnst "Joe" /= emp ./ "name") $
+      result [("nom", emp ./ "name")]
 
 example5 =
     let employees =
@@ -43,14 +43,14 @@ example5 =
                               ]
     in let query =
             foreach employees $ \emp ->
-            having (20000 < project emp "salary") $
-            singleton (record [ ("name", project emp "name"),
-                                ("startdate", project emp "startdate") ])
+            having (20000 < emp ./ "salary") $
+            result [ ("name", emp ./ "name"),
+                     ("startdate", emp ./ "startdate") ]
 
     in let query2 =
             foreach query $ \emp ->
-            having (1998 > project emp "startdate") $
-            singleton (record [("name", project emp "name")])
+            having (1998 > emp ./ "startdate") $
+            result [("name", emp ./ "name")]
     in query2
 
 -- Unit tests ----------------------------------------------------------
@@ -67,8 +67,8 @@ test_example =
         ~?= "select _0.name as nom from employees as _0 where 20000 < _0.salary"
         ,
         narcToSQLString example4
-        ~?= "select _0.name as nom from employees as _0 where \"Joe\" = _0.name"
+        ~?= "select _0.name as nom from employees as _0 where \"Joe\" <> _0.name"
         ,
         narcToSQLString example5
-        ~?= "select _0.name as name from employees as _0 where 20000 < _0.salary and _0.startdate < 1998"
+        ~?= "select _0.name as name from employees as _0 where 20000 < _0.salary and 1998 > _0.startdate"
     ]

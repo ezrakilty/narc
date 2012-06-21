@@ -5,7 +5,7 @@ module Database.Narc.ExampleEmbedded where
 import Prelude hiding ((<), (==), (>=), (>), (<=), (/=), (+), (&&))
 import Test.HUnit
 import Database.Narc
-import Database.Narc.Embed
+import Database.Narc.Embed hiding ((./))
 import Database.Narc.Embed.Ops
 import Algebras
 
@@ -18,20 +18,20 @@ example2 = let t = (table "foo" [("a", TNum)]) in
             let s = (table "bar" [("a", TNum)]) in
             foreach t $ \x -> 
             foreach s $ \y -> 
-            ifthenelse ((x ./ "a") < (y ./ "a")) -- TODO: fix precedence.
+            ifthenelse (x ./ "a" < y ./ "a") -- TODO: fix precedence.
              (singleton x)
              (singleton y)
 
 example3 =
     let t = table "employees" [("name", TString), ("salary", TNum)] in
     foreach t $ \emp ->
-    having (20000 < (emp./"salary")) $
+    having (20000 < emp ./ "salary") $
       result [("nom", emp ./ "name")]
 
 example4 =
     let t = table "employees" [("name", TString), ("salary", TNum)] in
     foreach t $ \emp ->
-    having (cnst "Joe" == (emp./ "name")) $ -- TODO: still have to inject "Joe"
+    having (cnst "Joe" == emp ./ "name") $ -- TODO: still have to inject "Joe". grr.
       result [("nom", emp ./ "name")]
 
 example5 =
@@ -43,13 +43,13 @@ example5 =
     in let highEarners =
            -- employees having salary above 20000
             foreach employees $ \emp ->
-            having (20000 < (emp./ "salary")) $
+            having (20000 < emp ./ "salary") $
             result [ ("name", emp ./ "name"),
                      ("startdate", emp ./ "startdate") ]
 
     in let highEarnersFromBefore98 =
             foreach highEarners $ \emp ->
-            having ((emp ./ "startdate") < 1998) $
+            having (emp ./ "startdate" < 1998) $
             result [("name", emp ./ "name")]
     in highEarnersFromBefore98
 
@@ -61,18 +61,18 @@ example6 =
                               , ("startdate", TNum)
                               ]
     in let teamOf emp = foreach employees $ \e2 ->
-                        having ((e2 ./ "manager") == (emp ./ "manager")) $
+                        having (e2 ./ "manager" == emp ./ "manager") $
                         singleton e2
     in let highEarners =
             foreach employees $ \emp ->
-            having (20000 < (emp ./ "salary")) $
+            having (20000 < emp ./ "salary") $
             result [ ("name", emp ./ "name"),
                      ("startdate", emp ./ "startdate"),
                      ("manager", emp ./ "manager") ]
 
     in let highEarnersFromBefore98 =
             foreach highEarners $ \emp ->
-            having ((emp ./ "startdate") < 1998) $
+            having (emp ./ "startdate" < 1998) $
             result [("name", emp ./ "name"), ("manager", emp ./ "manager")]
     in foreach highEarnersFromBefore98 teamOf
 
@@ -80,7 +80,8 @@ example_teamRosters =
   let teamsTable   = table "teams"   [("name", TString), ("id",     TNum)] in
   let playersTable = table "players" [("name", TString), ("teamId", TNum)] in
   let rosterFor t = 
-          narrowToNames ["name"] (filterToFieldValue playersTable "teamId" (t ./ "id"))
+          narrowToNames ["name"]
+            (filterToFieldValue playersTable "teamId" (t ./ "id"))
   in
   let teamRosters =
           foreach teamsTable $ \t ->
@@ -100,7 +101,7 @@ equals2 x = 2 == x :: Bool
 {- Utility functions -}
 
 fieldValue field value p =
-    (p ./ field) == value
+    p ./ field == value
 
 filterToFieldValue table field value =
     foreach table $ \p ->
@@ -119,26 +120,51 @@ takeNarc n query = query
 -- | Transform a result set into an ordered result set. TBD: implement!
 orderByDesc field query = query
 
--- | A peculiar query from my train game Perl implementation.
+-- | A peculiar query from my train game in Perl
 exampleQuery currentPlayer gameID =
-    let playing = table "playing" [("gameID", TNum),
-                                   ("player", TNum),
-                                   ("position", TNum)] in
-    let playingHere = filterToFieldValue playing "gameID" gameID
-    in
+    let playingSchema = [("gameID", TNum), ("player", TNum), ("position", TNum)] in
+    let playingTable = table "playing" playingSchema in
+    let playingHere = filterToFieldValue playingTable "gameID" gameID in
     takeNarc 1 $             -- TODO: define
     orderByDesc "position" $ -- TODO: define
     (foreach playingHere $ \a ->
      foreach playingHere $ \b ->
-     having ((a ./ "position") + 1 == (b ./ "position") &&
-             (a ./ "player") == currentPlayer) $
+     having (a ./ "position" + 1 == b ./ "position" &&
+            a ./ "player" == currentPlayer) $
      result [("player",   b ./ "player"),
              ("position", b ./ "position")])
     `union`
     (foreach playingHere $ \a ->
-     having ((a ./ "position") == 1) $
+     having (a ./ "position" == 1) $
      result [("player",   a ./ "player"),
              ("position", a ./ "position")])
+
+-- | Take the rows of @a@ that have a corresponding row (according to
+-- @joinRel@) in @b@ and where the two rows satisfy @pred@. Importantly,
+-- returns a relation with the type of @a@, that is, drops the row @b@.
+wherehas a aSchema b joinRel pred = 
+    foreach a $ \x ->
+    foreach b $ \y ->
+    having (joinRel x y) $
+    having (pred x y) $
+    singleton x
+
+-- | A peculiar query from my train game in Perl
+exampleQuery2 currentPlayer gameID =
+    let playingSchema = [("gameID", TNum), ("player", TNum), ("position", TNum)] in
+    let playingTable = table "playing" playingSchema in
+    let playingHere = filterToFieldValue playingTable "gameID" gameID in
+    takeNarc 1 $             -- TODO: define
+    orderByDesc "position" $ -- TODO: define
+    (projection ["player", "position"] $
+     wherehas playingHere playingSchema playingHere adjacentPosition
+     (\a -> \b -> a ./ "player" == currentPlayer))
+    `union`
+    (foreach playingHere $ \a ->
+     having (a ./ "position" == 1) $
+     result [("player",   a ./ "player"),
+             ("position", a ./ "position")])
+  where adjacentPosition a b = a ./ "position" + 1 == b ./ "position"
 
 -- The original query: select the player to the right of the current
 -- player, or player 1 if there is no current player.
@@ -187,7 +213,8 @@ test_example =
         narcToSQLString example6
         ~?= "select _3.salary as salary, _3.name as name, _3.manager as manager, _3.startdate as startdate from employees as _0, employees as _3 where 20000 < _0.salary and _0.startdate < 1998 and _3.manager = _0.manager"
         ,
-        narcToSQLString example_teamRosters ~?= ""
+        narcToSQLString example_teamRosters
+        ~?= "select _0.name as teamName from teams as _0, select count(*) as count from players as _1 where _1.teamId = _0.id as x where x.count >= 9"
         ,
         narcToSQLString (exampleQuery 3 4) ~?= ""
     ]

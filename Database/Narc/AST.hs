@@ -5,6 +5,7 @@ module Database.Narc.AST (
   fvs, substTerm,
   strip, retagulate, rename, variables,
   (!),
+  fieldsOf,
   -- unit_, Const, cnst_, primApp_, var_, abs_, app_, table_, ifthenelse_,
   -- singleton_, nil_, union_, record_, project_, foreach_,
   module Database.Narc.Common
@@ -39,12 +40,15 @@ type Term a = (Term' a, a)
 
 -- TBD: use term ::: type or similar instead of (term, type).
 
+-- | @PlainTerm@s are unannotated with types.
 type PlainTerm = Term ()
 
+-- | @TypedTerm@s carry a type at each node.
 type TypedTerm = Term Type
 
 -- Operations on terms -------------------------------------------------
 
+-- | Free variables of a term.
 fvs (Unit, _) = []
 fvs (Bool _, _) = []
 fvs (Num _, _) = []
@@ -62,8 +66,12 @@ fvs (Record fields, _) = nub $ concat $ map (fvs . snd) fields
 fvs (Project targ _, _) = fvs targ
 fvs (Comp x src body, _) = fvs src `u` (fvs body \\ [x])
 
+-- | An infinite list of variable names; useful for generating new
+-- ones. Subtract some finite list to generate a name fresh for that
+-- list.
 variables = map ('y':) $ map show [0..]
 
+-- | Rename free occurrences of a variable @x@ to @y@: @rename x y term@.
 rename x y (Var z, q) | x == z    = (Var y, q)
                       | otherwise = (Var z, q)
 rename x y (l@(Abs z n, q)) | x == z    = l
@@ -88,7 +96,7 @@ rename x y (Unit, q) = (Unit, q)
 rename x y (Nil, q) = (Nil, q)
 rename x y (Union a b, q) = (Union (rename x y a) (rename x y b), q)
 
--- | substTerm x v m: substite v for x in term m
+-- | @substTerm x v m@: substite v for x in term m
 -- (Actually incorrect because it does not make substitutions in the
 -- annotation.)
 substTerm :: VarName -> Term t -> Term t -> Term t
@@ -126,21 +134,6 @@ substTerm x v (Comp y src body, q)
 substTerm x v (If c a b, q) = 
     (If (substTerm x v c) (substTerm x v a) (substTerm x v b), q)
 
--- | lazyDepth: calculate a list (poss. inf.) whose sum is the depth
--- of the term. (unused)
-lazyDepth :: Term a -> [Int]
-lazyDepth (Abs _ n, _) = 1 : lazyDepth n
-lazyDepth (App l m, _) = 1 : zipWith max (lazyDepth l) (lazyDepth m)
-lazyDepth (Project m _, _) = 1 : lazyDepth m
-lazyDepth (Singleton m, _) = 1 : lazyDepth m
-lazyDepth (PrimApp prim args, _) =
-    1 : foldr1 (zipWith max) (map lazyDepth args)
-lazyDepth (Record fields, _) =
-    1 : foldr1 (zipWith max) (map (lazyDepth . snd) fields)
-lazyDepth (Comp _ src body, _) =
-    1 : zipWith max (lazyDepth src) (lazyDepth body)
-lazyDepth _ = 1 : []
-
 -- Generic term-recursion functions ------------------------------------
 
 -- | Apply a function to each term while traversing down, and use its
@@ -177,9 +170,8 @@ entagulate f m@(Comp x src body, d) =
 
 -- | Apply a function to each node while traversing *up*, using its
 -- | result as the new annotation for that node.
-
--- (FIXME: I think all this can be refactored to a nice BU/TD
--- combinator that doesn't know about annotations.
+{- (FIXME: I think all this can be refactored to a nice BU/TD
+   combinator that doesn't know about annotations. -}
 retagulate :: (Term a -> a) -> Term a -> Term a
 retagulate f (Unit, d) = (Unit, f (Unit, d))
 retagulate f (Bool b, d) = (Bool b, f (Bool b, d))
@@ -224,10 +216,11 @@ retagulate f (Comp x src body, d) =
     let result = Comp x (retagulate f src) (retagulate f body) in
     (result, f (result, d))
 
+-- | Strip off the annotations of every node in a term, leaving ().
 strip = entagulate (const ())
 
--- | The number of comprehensions in an expression, a measure of the
--- complexity of the query.
+-- | The number of comprehensions in an expression, a fuzzy measure of
+-- the complexity of the query.
 numComps (Comp x src body, _) = 1 + numComps src + numComps body
 numComps (PrimApp _ args, _) = sum $ map numComps args
 numComps (Abs _ n, _) = numComps n
@@ -272,9 +265,10 @@ instance Constable Integer where cnst n = num n
 
 -- Explicit-named builders
 
+-- | Inject a value of type T into (T, ()) in the only sensible way.
 (!) x = (x, ())
 
-instance NarcSem (Term'(),()) where
+instance NarcSem PlainTerm where
   unit = (!)Unit
   bool b = (!)(Bool b)
   num n = (!)(Num n)
@@ -294,7 +288,7 @@ instance NarcSem (Term'(),()) where
 -- class Const a where cnst_ :: a -> Term ()
 
 {- AST-constructing utilities. But I've decided to use the NarcSem
-   class instead. -}
+   class instead; DEPRECATED. -}
 
 unit_ = (!)Unit
 class Const a where cnst_ :: a -> Term ()
@@ -313,3 +307,9 @@ union_ a b = (!)(Union a b)
 record_ fields = (!)(Record fields)
 project_ body field = (!)(Project body field)
 foreach_ src x body = (!)(Comp x src body)
+
+{- Constructors/deconstructors for AST nodes. -}
+
+-- | Given a Table node, return a list of the names of its fields.
+fieldsOf :: Term' t -> [Field]
+fieldsOf (Table name fields) = map fst fields

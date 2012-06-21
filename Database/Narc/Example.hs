@@ -80,7 +80,8 @@ example_teamRosters =
   let teamsTable   = table "teams"   [("name", TString), ("id",     TNum)] in
   let playersTable = table "players" [("name", TString), ("teamId", TNum)] in
   let rosterFor t = 
-          narrowToNames ["name"] (filterToFieldValue playersTable "teamId" (t ./ "id"))
+          narrowToNames ["name"]
+            (filterToFieldValue playersTable "teamId" (t ./ "id"))
   in
   let teamRosters =
           foreach teamsTable $ \t ->
@@ -89,18 +90,28 @@ example_teamRosters =
 -- And we can return a list of those teams with at least 9 players as follows:
   in
   let validTeams = foreach teamRosters $ \t ->
-                   having (primApp ">=" [(primApp "length" [t ./ "roster"]), cnst (9::Integer)]) $
+                   having (primApp ">=" [(primApp "length" [t ./ "roster"]),
+                                         cnst (9::Integer)]) $
                    result [("teamName", project t "teamName")]
   in validTeams
 
+-- | A predicate asserting that the given @field@ of @p@ has the given
+-- @value@. @fieldValue field value p@.
 fieldValue field value p =
     primApp "=" [p ./ field, value]
 
+-- | Filter to rows which have a particular value in a field:
+-- @filterToFieldValue table field value@.
 filterToFieldValue table field value =
+    filterPred table (fieldValue field value)
+
+-- | Filter to rows which give true for a predicate: @filterPred table pred@.
+filterPred table pred =
     foreach table $ \p ->
-    having (fieldValue field value p) $
+    having (pred p) $
     singleton p
 
+-- | Project-away all columns but the given ones: @narrowToNames names src@.
 narrowToNames names src =
     foreach src $ \p ->
     result [(n, p ./ n) | n <- names]
@@ -120,8 +131,8 @@ exampleQuery currentPlayer gameID =
     let playingHere = foreach playing $ \p -> 
                       having (primApp "=" [project p "gameID", cnst gameID]) $
                       singleton p in
-    takeNarc 1 $ -- narcify
-    orderByDesc "position" $ -- define
+    takeNarc 1             $ -- TODO: define
+    orderByDesc "position" $ -- TODO: define
     (foreach playingHere $ \a ->
      foreach playingHere $ \b ->
      having (primApp "and" [primApp "=" [primApp "+" [project a "position",

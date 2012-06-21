@@ -5,7 +5,7 @@ module Database.Narc.Debug where
 import Prelude hiding (catch)
 import Control.Exception (catch, evaluate, throwIO, SomeException)
 import Debug.Trace (trace)
-import Foreign (unsafePerformIO)
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | Enable/disable debugging messages
 debugFlag :: Bool

@@ -5,7 +5,7 @@ module QCUtils where
 import Prelude hiding (catch)
 import Test.QuickCheck
 import Control.Exception
-import Foreign (unsafePerformIO)
+import System.IO.Unsafe (unsafePerformIO)
 
 import System.Random
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses, FlexibleInstances #-}
 
 module Database.Narc.Embed where
 
@@ -13,6 +13,8 @@ import Database.Narc.AST
 -- HOAS-ish embedded language.
 
 type NarcTerm = Gensym (Term ())
+
+type Schema = [(Field, Type)]
 
 -- | Turn a HOAS representation of a Narc term into a concrete,
 -- | named-binder representation.
@@ -51,7 +53,7 @@ app l m = (!) <$> (App <$> l <*> m)
 
 -- | A reference to a named database table; second argument is its
 -- schema type.
-table :: Tabname -> [(Field, Type)] -> NarcTerm
+table :: Tabname -> Schema -> NarcTerm
 table tbl ty = return $ (!) $ Table tbl ty
 
 -- | A condition between two terms, as determined by the boolean value
@@ -83,12 +85,6 @@ record fields = (!) <$> (Record <$> sequence [do expr' <- expr ; return (lbl, ex
 project :: NarcTerm -> String -> NarcTerm
 project expr field = (!) <$> (Project <$> expr <*> return field)
 
--- | Infix field projection: @aRecord ./ aField@ denotes the
--- projection of aField from aRecord. Chosen to remind us of the "."
--- notation for field access in Algolish languages, and the "/"
--- notation for paths in UNIX, XQuery, etc.
-(./) = project
-
 -- | For each item in the collection resulting from the first
 -- argument, give it to the function which is the second argument
 -- and evaluate--this corresponds to a loop, or two one part of a
@@ -114,3 +110,20 @@ having cond body = ifthenelse cond body nil
 -- > result [("result", project x "b")]
 result :: [(String, NarcTerm)] -> NarcTerm
 result x = singleton $ record x
+
+{- Miscellaneous. Find a better place for these. -}
+
+restrictAs :: Schema -> NarcTerm -> NarcTerm
+restrictAs schema term = projection (map fst schema) term
+
+projection :: [String] -> NarcTerm -> NarcTerm
+projection fields table = 
+    foreach table $ \row ->
+    result [(f, row `project` f) | f <- fields]
+
+-- | Infix field projection: @aRecord ./ aField@ denotes the
+-- projection of @aField@ from @aRecord@. Chosen to remind us of the "."
+-- notation for field access in Algolish languages, and the "/"
+-- notation for paths in UNIX, XQuery, etc.
+infixr 9 ./
+(./) = project {- Redundant with Database.Narc.Embed. Choose one? -}

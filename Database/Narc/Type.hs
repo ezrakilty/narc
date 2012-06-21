@@ -183,8 +183,8 @@ unify (TRecord a) (TRecord b) =
          let (tySubsts) = substs
          subst <- composeTySubst tySubsts
          return (subst)
-unify a b = fail("Type mismatch between " ++ 
-                 show a ++ " and " ++ show b)
+unify a b = fail ("Type mismatch between " ++ 
+                  show a ++ " and " ++ show b)
 
 unifyAll :: [Type] -> Fallible TySubst
 unifyAll [] = return ([])
